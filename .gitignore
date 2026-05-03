@@ -1,0 +1,31 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# VSCode local settings
+.vscode/
+
+# OS files
+.DS_Store
+
+# Generated data and outputs
+data/*.csv
+data/*.png
+data/*.jpg
+data/*.jpeg
+
+# Keep data folder structure
+!data/.gitkeep
+
+# Logs
+*.log
+
+# Matplotlib cache
+data/.matplotlib/

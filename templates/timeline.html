@@ -3,55 +3,52 @@
 {% block content %}
 <section class="page-header card">
   <h2>本周时间线</h2>
-  <p>今日已完成任务：{{ completed_today }}</p>
+  <p>从今天开始展示未来 7 天的固定安排、DDL 与建议关注任务。</p>
 </section>
 
-<section class="grid-2">
-  <article class="card">
-    <h3>按日期显示固定安排</h3>
-    {% for day, day_events in events_by_date.items() %}
-    <div class="sub-block">
-      <strong>{{ day }}</strong>
+<section class="timeline-list">
+  {% for day in timeline_days %}
+  <article class="card timeline-day-card">
+    <h3>{{ day.date_str }} {{ day.weekday }}</h3>
+
+    <div class="timeline-block">
+      <h4>固定安排：</h4>
       <ul>
-        {% for event in day_events %}
-        <li>{{ event.start_time }} - {{ event.end_time }}｜{{ event.event_name }}</li>
+        {% for line in day.fixed_event_lines %}
+        <li>{{ line }}</li>
+        {% else %}
+        <li>暂无固定安排</li>
         {% endfor %}
       </ul>
     </div>
-    {% else %}
-    <p>暂无固定安排</p>
-    {% endfor %}
-  </article>
 
-  <article class="card">
-    <h3>今日 DDL</h3>
-    <ul>
-      {% for task in today_ddl %}
-      <li>{{ task.task_name }}（优先级：{{ task.priority }}）</li>
-      {% else %}
-      <li>今天暂无 DDL</li>
-      {% endfor %}
-    </ul>
-  </article>
-</section>
+    <div class="timeline-block">
+      <h4>今日 DDL：</h4>
+      <ul>
+        {% for task in day.ddl_tasks %}
+        <li>{{ task.task_name }}</li>
+        {% else %}
+        <li>暂无今日 DDL</li>
+        {% endfor %}
+      </ul>
+    </div>
 
-<section class="grid-2">
-  <article class="card">
-    <h3>推荐关注</h3>
-    <ul>
-      {% for task in suggested_tasks %}
-      <li>{{ task.task_name }}（{{ task.priority }}）</li>
-      {% else %}
-      <li>暂无推荐任务</li>
-      {% endfor %}
-    </ul>
-  </article>
+    <div class="timeline-block">
+      <h4>推荐关注：</h4>
+      <ul>
+        {% for task in day.recommended_tasks %}
+        <li>{{ task.task_name }}</li>
+        {% else %}
+        <li>暂无推荐关注任务</li>
+        {% endfor %}
+      </ul>
+    </div>
 
-  <article class="card">
-    <h3>今日状态</h3>
-    <p>总任务数：{{ tasks|length }}</p>
-    <p>固定安排数：{{ events|length }}</p>
-    <p>当前积分：{{ stats.current_points }}</p>
+    <div class="timeline-status">
+      <span>今日状态：{{ day.status }}</span>
+      <small>固定安排 {{ day.total_event_hours }} 小时，DDL {{ day.ddl_count }} 项</small>
+    </div>
   </article>
+  {% endfor %}
 </section>
 {% endblock %}

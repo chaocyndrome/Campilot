@@ -6,51 +6,141 @@
   <p>当前未完成任务：{{ unfinished_tasks|length }}</p>
 </section>
 
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  <section class="flash-list">
+    {% for category, message in messages %}
+    <div class="flash-message {{ category }}">{{ message }}</div>
+    {% endfor %}
+  </section>
+  {% endif %}
+{% endwith %}
+
 <section class="grid-2">
   <article class="card">
     <h3>今日推荐任务</h3>
-    <ul>
+    <div class="task-card-list">
       {% for task in recommended_tasks %}
-      <li>{{ task.task_name }}（{{ task.priority }}，DDL: {{ task.deadline }}）</li>
+      <div class="task-card">
+        <h4>{{ task.task_name }}</h4>
+        <p>标签：{{ task.tag }} ｜ 类型：{{ task.task_type }}</p>
+        <p>DDL：{{ task.deadline }} ｜ 剩余天数：{{ task.days_left }}</p>
+        <p>预计耗时：{{ task.estimated_hours }}h ｜ 难度：{{ task.difficulty }} ｜ 重要程度：{{ task.importance }}</p>
+        <p>优先级：<strong>{{ task.priority }}</strong></p>
+        <p>推荐理由：{{ task.reason }}</p>
+        <div class="action-group">
+          <form method="post" action="{{ url_for('focus_task', task_id=task.task_id) }}">
+            <input type="hidden" name="next" value="{{ url_for('today') }}">
+            <button type="submit" class="btn-secondary">加入今日关注</button>
+          </form>
+          <form method="post" action="{{ url_for('complete_task', task_id=task.task_id) }}">
+            <input type="hidden" name="next" value="{{ url_for('today') }}">
+            <button type="submit" class="btn-primary">完成任务</button>
+          </form>
+        </div>
+      </div>
       {% else %}
-      <li>暂无推荐任务</li>
+      <p>暂无推荐任务</p>
       {% endfor %}
-    </ul>
+    </div>
   </article>
 
   <article class="card">
     <h3>今日关注任务</h3>
-    <ul>
+    <div class="task-card-list">
       {% for task in focus_tasks %}
-      <li>{{ task.task_name }}（{{ task.priority }}，剩余 {{ task.days_left }} 天）</li>
+      <div class="task-card">
+        <h4>{{ task.task_name }}</h4>
+        <p>标签：{{ task.tag }} ｜ 类型：{{ task.task_type }}</p>
+        <p>DDL：{{ task.deadline }} ｜ 剩余天数：{{ task.days_left }}</p>
+        <p>预计耗时：{{ task.estimated_hours }}h ｜ 难度：{{ task.difficulty }} ｜ 重要程度：{{ task.importance }}</p>
+        <p>优先级：<strong>{{ task.priority }}</strong></p>
+        <p>推荐理由：{{ task.reason }}</p>
+        <div class="action-group">
+          <form method="post" action="{{ url_for('complete_task', task_id=task.task_id) }}">
+            <input type="hidden" name="next" value="{{ url_for('today') }}">
+            <button type="submit" class="btn-primary">完成任务</button>
+          </form>
+        </div>
+      </div>
       {% else %}
-      <li>暂无关注任务</li>
+      <p>暂无今日关注任务</p>
       {% endfor %}
-    </ul>
+    </div>
   </article>
 </section>
 
-<section class="grid-2">
-  <article class="card">
-    <h3>最近 DDL</h3>
-    <ul>
-      {% for task in recent_ddl %}
-      <li>{{ task.task_name }} - {{ task.deadline }}（{{ task.days_left }} 天）</li>
-      {% else %}
-      <li>暂无 DDL 任务</li>
-      {% endfor %}
-    </ul>
-  </article>
+<section class="card table-card">
+  <h3>最近 DDL</h3>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>任务名称</th>
+          <th>DDL</th>
+          <th>剩余天数</th>
+          <th>优先级</th>
+          <th>状态</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for task in recent_ddl %}
+        <tr>
+          <td>{{ task.task_name }}</td>
+          <td>{{ task.deadline }}</td>
+          <td>{{ task.days_left }}</td>
+          <td>{{ task.priority }}</td>
+          <td>{{ task.status }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="5">暂无最近 DDL 任务</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
 
-  <article class="card">
-    <h3>所有未完成任务</h3>
-    <ul>
-      {% for task in unfinished_tasks[:8] %}
-      <li>{{ task.task_name }}（{{ task.status }}）</li>
-      {% else %}
-      <li>当前没有未完成任务</li>
-      {% endfor %}
-    </ul>
-  </article>
+<section class="card table-card">
+  <h3>所有未完成任务</h3>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>任务名称</th>
+          <th>标签</th>
+          <th>类型</th>
+          <th>DDL</th>
+          <th>剩余天数</th>
+          <th>预计耗时</th>
+          <th>难度</th>
+          <th>重要程度</th>
+          <th>优先级</th>
+          <th>状态</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for task in unfinished_tasks %}
+        <tr>
+          <td>{{ task.task_name }}</td>
+          <td>{{ task.tag }}</td>
+          <td>{{ task.task_type }}</td>
+          <td>{{ task.deadline }}</td>
+          <td>{{ task.days_left }}</td>
+          <td>{{ task.estimated_hours }}</td>
+          <td>{{ task.difficulty }}</td>
+          <td>{{ task.importance }}</td>
+          <td>{{ task.priority }}</td>
+          <td>{{ task.status }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="10">当前没有未完成任务</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </section>
 {% endblock %}

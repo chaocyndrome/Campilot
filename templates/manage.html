@@ -3,76 +3,204 @@
 {% block content %}
 <section class="page-header card">
   <h2>添加/管理</h2>
-  <p>此页面提供表单与数据管理骨架，后续可逐步接入提交逻辑。</p>
+  <p>在这里添加任务与固定安排，并管理已有数据。</p>
 </section>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  <section class="flash-list">
+    {% for category, message in messages %}
+    <div class="flash-message {{ category }}">{{ message }}</div>
+    {% endfor %}
+  </section>
+  {% endif %}
+{% endwith %}
 
 <section class="grid-2">
   <article class="card">
     <h3>添加任务表单</h3>
-    <p>占位区域：后续接入任务新增表单。</p>
+    <form method="post" action="{{ url_for('add_task') }}" class="form-grid">
+      <label>
+        任务名称
+        <input type="text" name="task_name" required>
+      </label>
+      <label>
+        标签
+        <input type="text" name="tag" placeholder="例如：学习">
+      </label>
+      <label>
+        任务类型
+        <select name="task_type" required>
+          <option value="作业">作业</option>
+          <option value="实验">实验</option>
+          <option value="阅读">阅读</option>
+          <option value="复习">复习</option>
+          <option value="报告">报告</option>
+          <option value="项目">项目</option>
+          <option value="事务">事务</option>
+        </select>
+      </label>
+      <label>
+        截止日期
+        <input type="date" name="deadline" required>
+      </label>
+      <label>
+        预计耗时（小时）
+        <input type="number" name="estimated_hours" step="0.5" min="0.5" max="24" required>
+      </label>
+      <label>
+        难度（1-5）
+        <select name="difficulty" required>
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+          <option value="5">5</option>
+        </select>
+      </label>
+      <label>
+        重要程度（1-5）
+        <select name="importance" required>
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+          <option value="5">5</option>
+        </select>
+      </label>
+      <label class="full-width">
+        备注
+        <textarea name="note" rows="3" placeholder="任务补充说明"></textarea>
+      </label>
+      <button type="submit" class="btn-primary">添加任务</button>
+    </form>
   </article>
 
   <article class="card">
     <h3>添加固定安排表单</h3>
-    <p>占位区域：后续接入固定安排新增表单。</p>
+    <form method="post" action="{{ url_for('add_event') }}" class="form-grid">
+      <label>
+        安排名称
+        <input type="text" name="event_name" required>
+      </label>
+      <label>
+        标签
+        <input type="text" name="tag" placeholder="例如：课程">
+      </label>
+      <label>
+        日期
+        <input type="date" name="date" required>
+      </label>
+      <label>
+        开始时间
+        <input type="time" name="start_time" required>
+      </label>
+      <label>
+        结束时间
+        <input type="time" name="end_time" required>
+      </label>
+      <label>
+        类型
+        <select name="event_type" required>
+          <option value="课程">课程</option>
+          <option value="会议">会议</option>
+          <option value="社交">社交</option>
+          <option value="生活">生活</option>
+          <option value="其他">其他</option>
+        </select>
+      </label>
+      <label class="full-width">
+        备注
+        <textarea name="note" rows="3" placeholder="安排补充说明"></textarea>
+      </label>
+      <button type="submit" class="btn-primary">添加固定安排</button>
+    </form>
   </article>
 </section>
 
-<section class="grid-2">
-  <article class="card">
-    <h3>当前任务表</h3>
+<section class="card table-card">
+  <h3>当前任务表</h3>
+  <div class="table-wrap">
     <table>
       <thead>
         <tr>
-          <th>ID</th>
-          <th>任务名</th>
+          <th>任务名称</th>
+          <th>标签</th>
+          <th>任务类型</th>
+          <th>DDL</th>
+          <th>预计耗时</th>
+          <th>难度</th>
+          <th>重要程度</th>
           <th>优先级</th>
           <th>状态</th>
+          <th>推荐理由</th>
+          <th>操作</th>
         </tr>
       </thead>
       <tbody>
-        {% for task in tasks[:8] %}
+        {% for task in tasks %}
         <tr>
-          <td>{{ task.task_id }}</td>
           <td>{{ task.task_name }}</td>
+          <td>{{ task.tag }}</td>
+          <td>{{ task.task_type }}</td>
+          <td>{{ task.deadline }}</td>
+          <td>{{ task.estimated_hours }}</td>
+          <td>{{ task.difficulty }}</td>
+          <td>{{ task.importance }}</td>
           <td>{{ task.priority }}</td>
           <td>{{ task.status }}</td>
+          <td class="reason-cell">{{ task.reason }}</td>
+          <td>
+            <form method="post" action="{{ url_for('delete_task', task_id=task.task_id) }}">
+              <button type="submit" class="btn-danger">删除</button>
+            </form>
+          </td>
         </tr>
         {% else %}
         <tr>
-          <td colspan="4">暂无任务数据</td>
+          <td colspan="11">暂无任务数据</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
-  </article>
+  </div>
+</section>
 
-  <article class="card">
-    <h3>当前固定安排表</h3>
+<section class="card table-card">
+  <h3>当前固定安排表</h3>
+  <div class="table-wrap">
     <table>
       <thead>
         <tr>
-          <th>ID</th>
-          <th>安排名</th>
           <th>日期</th>
           <th>时间</th>
+          <th>安排名称</th>
+          <th>标签</th>
+          <th>类型</th>
+          <th>操作</th>
         </tr>
       </thead>
       <tbody>
-        {% for event in events[:8] %}
+        {% for event in events %}
         <tr>
-          <td>{{ event.event_id }}</td>
-          <td>{{ event.event_name }}</td>
           <td>{{ event.date }}</td>
-          <td>{{ event.start_time }}-{{ event.end_time }}</td>
+          <td>{{ event.start_time }} - {{ event.end_time }}</td>
+          <td>{{ event.event_name }}</td>
+          <td>{{ event.tag }}</td>
+          <td>{{ event.event_type }}</td>
+          <td>
+            <form method="post" action="{{ url_for('delete_event', event_id=event.event_id) }}">
+              <button type="submit" class="btn-danger">删除</button>
+            </form>
+          </td>
         </tr>
         {% else %}
         <tr>
-          <td colspan="4">暂无固定安排</td>
+          <td colspan="6">暂无固定安排</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
-  </article>
+  </div>
 </section>
 {% endblock %}

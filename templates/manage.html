@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header card">
+  <h2>添加/管理</h2>
+  <p>此页面提供表单与数据管理骨架，后续可逐步接入提交逻辑。</p>
+</section>
+
+<section class="grid-2">
+  <article class="card">
+    <h3>添加任务表单</h3>
+    <p>占位区域：后续接入任务新增表单。</p>
+  </article>
+
+  <article class="card">
+    <h3>添加固定安排表单</h3>
+    <p>占位区域：后续接入固定安排新增表单。</p>
+  </article>
+</section>
+
+<section class="grid-2">
+  <article class="card">
+    <h3>当前任务表</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>任务名</th>
+          <th>优先级</th>
+          <th>状态</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for task in tasks[:8] %}
+        <tr>
+          <td>{{ task.task_id }}</td>
+          <td>{{ task.task_name }}</td>
+          <td>{{ task.priority }}</td>
+          <td>{{ task.status }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="4">暂无任务数据</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </article>
+
+  <article class="card">
+    <h3>当前固定安排表</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>安排名</th>
+          <th>日期</th>
+          <th>时间</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for event in events[:8] %}
+        <tr>
+          <td>{{ event.event_id }}</td>
+          <td>{{ event.event_name }}</td>
+          <td>{{ event.date }}</td>
+          <td>{{ event.start_time }}-{{ event.end_time }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="4">暂无固定安排</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </article>
+</section>
+{% endblock %}

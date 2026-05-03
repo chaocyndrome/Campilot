@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header card">
+  <h2>奖励/成就</h2>
+  <p>当前积分：{{ stats.current_points }} ｜ 累计积分：{{ stats.total_points }}</p>
+</section>
+
+<section class="grid-2">
+  <article class="card">
+    <h3>积分概览</h3>
+    <p>已完成任务：{{ stats.completed_tasks }}</p>
+    <p>可用积分：{{ stats.current_points }}</p>
+  </article>
+
+  <article class="card">
+    <h3>奖励商店</h3>
+    <ul>
+      {% for reward in rewards %}
+      <li>{{ reward.reward_name }}（{{ reward.cost }} 分）</li>
+      {% else %}
+      <li>暂无奖励配置</li>
+      {% endfor %}
+    </ul>
+  </article>
+</section>
+
+<section class="grid-2">
+  <article class="card">
+    <h3>兑换记录</h3>
+    <ul>
+      {% for record in records[:8] %}
+      <li>{{ record.redeemed_at }}：{{ record.reward_name }}（-{{ record.cost }}）</li>
+      {% else %}
+      <li>暂无兑换记录</li>
+      {% endfor %}
+    </ul>
+  </article>
+
+  <article class="card">
+    <h3>成就徽章</h3>
+    <p>占位区域：后续接入徽章规则。</p>
+  </article>
+</section>
+
+<section class="card">
+  <h3>基础统计</h3>
+  <p>任务总数：{{ tasks|length }}</p>
+  <p>固定安排总数：{{ events|length }}</p>
+  <p>兑换记录总数：{{ records|length }}</p>
+</section>
+{% endblock %}

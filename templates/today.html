@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header card">
+  <h2>今日任务</h2>
+  <p>当前未完成任务：{{ unfinished_tasks|length }}</p>
+</section>
+
+<section class="grid-2">
+  <article class="card">
+    <h3>今日推荐任务</h3>
+    <ul>
+      {% for task in recommended_tasks %}
+      <li>{{ task.task_name }}（{{ task.priority }}，DDL: {{ task.deadline }}）</li>
+      {% else %}
+      <li>暂无推荐任务</li>
+      {% endfor %}
+    </ul>
+  </article>
+
+  <article class="card">
+    <h3>今日关注任务</h3>
+    <ul>
+      {% for task in focus_tasks %}
+      <li>{{ task.task_name }}（{{ task.priority }}，剩余 {{ task.days_left }} 天）</li>
+      {% else %}
+      <li>暂无关注任务</li>
+      {% endfor %}
+    </ul>
+  </article>
+</section>
+
+<section class="grid-2">
+  <article class="card">
+    <h3>最近 DDL</h3>
+    <ul>
+      {% for task in recent_ddl %}
+      <li>{{ task.task_name }} - {{ task.deadline }}（{{ task.days_left }} 天）</li>
+      {% else %}
+      <li>暂无 DDL 任务</li>
+      {% endfor %}
+    </ul>
+  </article>
+
+  <article class="card">
+    <h3>所有未完成任务</h3>
+    <ul>
+      {% for task in unfinished_tasks[:8] %}
+      <li>{{ task.task_name }}（{{ task.status }}）</li>
+      {% else %}
+      <li>当前没有未完成任务</li>
+      {% endfor %}
+    </ul>
+  </article>
+</section>
+{% endblock %}

@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header card">
+  <h2>本周时间线</h2>
+  <p>今日已完成任务：{{ completed_today }}</p>
+</section>
+
+<section class="grid-2">
+  <article class="card">
+    <h3>按日期显示固定安排</h3>
+    {% for day, day_events in events_by_date.items() %}
+    <div class="sub-block">
+      <strong>{{ day }}</strong>
+      <ul>
+        {% for event in day_events %}
+        <li>{{ event.start_time }} - {{ event.end_time }}｜{{ event.event_name }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% else %}
+    <p>暂无固定安排</p>
+    {% endfor %}
+  </article>
+
+  <article class="card">
+    <h3>今日 DDL</h3>
+    <ul>
+      {% for task in today_ddl %}
+      <li>{{ task.task_name }}（优先级：{{ task.priority }}）</li>
+      {% else %}
+      <li>今天暂无 DDL</li>
+      {% endfor %}
+    </ul>
+  </article>
+</section>
+
+<section class="grid-2">
+  <article class="card">
+    <h3>推荐关注</h3>
+    <ul>
+      {% for task in suggested_tasks %}
+      <li>{{ task.task_name }}（{{ task.priority }}）</li>
+      {% else %}
+      <li>暂无推荐任务</li>
+      {% endfor %}
+    </ul>
+  </article>
+
+  <article class="card">
+    <h3>今日状态</h3>
+    <p>总任务数：{{ tasks|length }}</p>
+    <p>固定安排数：{{ events|length }}</p>
+    <p>当前积分：{{ stats.current_points }}</p>
+  </article>
+</section>
+{% endblock %}

@@ -264,7 +264,32 @@ def timeline():
 def manage():
     """添加 / 管理页。"""
     context = _load_page_data()
-    context.update({"active_page": "manage"})
+    show_mode = request.args.get("show", "active").strip().lower()
+    if show_mode not in {"active", "all"}:
+        show_mode = "active"
+
+    all_tasks = context["tasks"]
+    tag_options = sorted(
+        {
+            str(task.get("tag", "")).strip()
+            for task in all_tasks
+            if str(task.get("tag", "")).strip()
+        }
+    )
+    tasks = all_tasks
+    if show_mode == "active":
+        tasks = [task for task in tasks if task.get("status") != "已完成"]
+
+    context.update(
+        {
+            "active_page": "manage",
+            "tasks": tasks,
+            "task_tag_options": tag_options,
+            "show_mode": show_mode,
+            "show_label": "显示未完成" if show_mode == "active" else "显示所有",
+            "manage_next_url": url_for("manage", show=show_mode),
+        }
+    )
     return render_template("manage.html", **context)
 
 
@@ -319,7 +344,48 @@ def delete_task(task_id):
         flash("任务删除成功", "success")
     else:
         flash("任务不存在或已删除", "error")
-    return redirect(url_for("manage"))
+    return _redirect_back(default_endpoint="manage")
+
+
+@app.route("/tasks/update/<task_id>", methods=["POST"])
+def update_task(task_id):
+    """更新任务信息。"""
+    tasks_df = storage.load_tasks()
+    target_rows = tasks_df[tasks_df["task_id"].astype(str) == str(task_id)]
+    if target_rows.empty:
+        flash("任务不存在或已删除", "error")
+        return _redirect_back(default_endpoint="manage")
+
+    current = target_rows.iloc[0]
+    updated_data = {
+        "task_name": request.form.get("task_name", "").strip(),
+        "tag": request.form.get("tag", "").strip(),
+        "task_type": request.form.get("task_type", "").strip(),
+        "deadline": request.form.get("deadline", "").strip(),
+        "estimated_hours": request.form.get("estimated_hours", "").strip(),
+        "difficulty": request.form.get("difficulty", "").strip(),
+        "importance": request.form.get("importance", "").strip(),
+        "status": request.form.get("status", "").strip(),
+        "note": request.form.get("note", "").strip(),
+    }
+
+    try:
+        recalculate_priority = (
+            str(updated_data["deadline"]) != str(current.get("deadline", ""))
+            or float(updated_data["estimated_hours"]) != float(current.get("estimated_hours", 0))
+            or int(updated_data["difficulty"]) != int(float(current.get("difficulty", 0)))
+            or int(updated_data["importance"]) != int(float(current.get("importance", 0)))
+            or str(updated_data["task_type"]) != str(current.get("task_type", ""))
+        )
+        storage.update_task(
+            task_id=task_id,
+            updated_data=updated_data,
+            recalculate_priority=recalculate_priority,
+        )
+        flash("任务已更新", "success")
+    except Exception as exc:
+        flash(f"任务更新失败：{exc}", "error")
+    return _redirect_back(default_endpoint="manage")
 
 
 @app.route("/tasks/focus/<task_id>", methods=["POST"])
@@ -353,7 +419,7 @@ def delete_event(event_id):
         flash("固定安排删除成功", "success")
     else:
         flash("固定安排不存在或已删除", "error")
-    return redirect(url_for("manage"))
+    return _redirect_back(default_endpoint="manage")
 
 
 @app.route("/rewards")

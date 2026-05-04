@@ -19,6 +19,18 @@
     </div>
   </header>
 
+  {% with flashed_messages = get_flashed_messages(with_categories=true) %}
+    {% if flashed_messages %}
+    <section class="toast-container" id="toast-container" aria-live="polite" aria-atomic="true">
+      {% for category, message in flashed_messages %}
+      <div class="toast toast-{{ 'error' if category in ['error', 'danger'] else category if category in ['success', 'warning', 'info'] else 'info' }}" role="status">
+        {{ message }}
+      </div>
+      {% endfor %}
+    </section>
+    {% endif %}
+  {% endwith %}
+
   <main class="container page-content">
     {% block content %}{% endblock %}
   </main>

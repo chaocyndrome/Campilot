@@ -6,16 +6,6 @@
   <p>当前未完成任务：{{ unfinished_tasks|length }}</p>
 </section>
 
-{% with messages = get_flashed_messages(with_categories=true) %}
-  {% if messages %}
-  <section class="flash-list">
-    {% for category, message in messages %}
-    <div class="flash-message {{ category }}">{{ message }}</div>
-    {% endfor %}
-  </section>
-  {% endif %}
-{% endwith %}
-
 <section class="grid-2">
   <article class="card">
     <h3>今日推荐任务</h3>

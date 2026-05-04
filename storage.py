@@ -324,6 +324,65 @@ def update_task_status(task_id, status):
     return _row_to_dict(tasks_df.loc[index])
 
 
+def update_task(task_id, updated_data, recalculate_priority=True):
+    """
+    更新任务信息。
+
+    Args:
+        task_id: 任务 ID。
+        updated_data (dict): 允许更新的字段，包含 task_name/tag/task_type/deadline/
+            estimated_hours/difficulty/importance/status/note 等。
+        recalculate_priority (bool): 是否重新计算优先级和推荐理由。
+
+    Returns:
+        dict: 更新后的任务字典。
+    """
+    tasks_df = load_tasks()
+    index = _find_row_index(tasks_df, "task_id", task_id)
+    if index is None:
+        raise ValueError(f"未找到 task_id={task_id} 的任务")
+
+    # 文本字段更新
+    for text_col in ["task_name", "tag", "task_type", "status", "note"]:
+        if text_col in updated_data:
+            tasks_df.at[index, text_col] = str(updated_data.get(text_col, "")).strip()
+
+    # 数值与日期字段更新
+    current_deadline = str(tasks_df.at[index, "deadline"])
+    deadline_raw = str(updated_data.get("deadline", current_deadline)).strip()
+    try:
+        deadline_date = pd.to_datetime(deadline_raw).date()
+    except Exception as exc:
+        raise ValueError("deadline 格式无效，请使用 YYYY-MM-DD") from exc
+
+    estimated_hours = float(
+        updated_data.get("estimated_hours", tasks_df.at[index, "estimated_hours"])
+    )
+    difficulty = int(float(updated_data.get("difficulty", tasks_df.at[index, "difficulty"])))
+    importance = int(float(updated_data.get("importance", tasks_df.at[index, "importance"])))
+
+    tasks_df.at[index, "deadline"] = deadline_date.isoformat()
+    tasks_df.at[index, "estimated_hours"] = estimated_hours
+    tasks_df.at[index, "difficulty"] = difficulty
+    tasks_df.at[index, "importance"] = importance
+    tasks_df.at[index, "days_left"] = (deadline_date - date.today()).days
+
+    if recalculate_priority:
+        task_info_for_model = {
+            "days_left": int(tasks_df.at[index, "days_left"]),
+            "estimated_hours": float(tasks_df.at[index, "estimated_hours"]),
+            "difficulty": int(float(tasks_df.at[index, "difficulty"])),
+            "importance": int(float(tasks_df.at[index, "importance"])),
+            "task_type": str(tasks_df.at[index, "task_type"]),
+        }
+        prediction = predict_priority(task_info_for_model, model=_get_prediction_model())
+        tasks_df.at[index, "priority"] = prediction["priority"]
+        tasks_df.at[index, "reason"] = prediction["reason"]
+
+    save_tasks(tasks_df)
+    return _row_to_dict(tasks_df.loc[index])
+
+
 def calculate_task_points(task_row):
     """
     根据任务信息计算积分。

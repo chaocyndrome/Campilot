@@ -6,16 +6,6 @@
   <p>在这里添加任务与固定安排，并管理已有数据。</p>
 </section>
 
-{% with messages = get_flashed_messages(with_categories=true) %}
-  {% if messages %}
-  <section class="flash-list">
-    {% for category, message in messages %}
-    <div class="flash-message {{ category }}">{{ message }}</div>
-    {% endfor %}
-  </section>
-  {% endif %}
-{% endwith %}
-
 <section class="grid-2">
   <article class="card">
     <h3>添加任务表单</h3>
@@ -26,7 +16,7 @@
       </label>
       <label>
         标签
-        <input type="text" name="tag" placeholder="例如：学习">
+        <input type="text" name="tag" list="task-tag-options" placeholder="例如：学习">
       </label>
       <label>
         任务类型
@@ -119,7 +109,19 @@
 </section>
 
 <section class="card table-card">
-  <h3>当前任务表</h3>
+  <div class="table-header-row">
+    <h3>当前任务表</h3>
+    <form method="get" action="{{ url_for('manage') }}" class="status-filter-form">
+      <label for="show-filter" class="status-filter-label">筛选：</label>
+      <div class="status-filter-select-wrap">
+        <select id="show-filter" name="show" class="status-filter-select" onchange="this.form.submit()">
+          <option value="active" {% if show_mode == 'active' %}selected{% endif %}>显示未完成</option>
+          <option value="all" {% if show_mode == 'all' %}selected{% endif %}>显示所有</option>
+        </select>
+      </div>
+    </form>
+  </div>
+
   <div class="table-wrap">
     <table>
       <thead>
@@ -133,14 +135,20 @@
           <th>重要程度</th>
           <th>优先级</th>
           <th>状态</th>
-          <th>推荐理由</th>
-          <th>操作</th>
         </tr>
       </thead>
       <tbody>
         {% for task in tasks %}
         <tr>
-          <td>{{ task.task_name }}</td>
+          <td>
+            <button
+              type="button"
+              class="task-name-trigger"
+              data-task='{{ task|tojson }}'
+            >
+              {{ task.task_name }}
+            </button>
+          </td>
           <td>{{ task.tag }}</td>
           <td>{{ task.task_type }}</td>
           <td>{{ task.deadline }}</td>
@@ -149,16 +157,10 @@
           <td>{{ task.importance }}</td>
           <td>{{ task.priority }}</td>
           <td>{{ task.status }}</td>
-          <td class="reason-cell">{{ task.reason }}</td>
-          <td>
-            <form method="post" action="{{ url_for('delete_task', task_id=task.task_id) }}">
-              <button type="submit" class="btn-danger">删除</button>
-            </form>
-          </td>
         </tr>
         {% else %}
         <tr>
-          <td colspan="11">暂无任务数据</td>
+          <td colspan="9">当前无符合筛选条件的任务</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -190,6 +192,7 @@
           <td>{{ event.event_type }}</td>
           <td>
             <form method="post" action="{{ url_for('delete_event', event_id=event.event_id) }}">
+              <input type="hidden" name="next" value="{{ manage_next_url }}">
               <button type="submit" class="btn-danger">删除</button>
             </form>
           </td>
@@ -203,4 +206,98 @@
     </table>
   </div>
 </section>
+
+<div class="modal-backdrop" id="task-edit-modal" hidden>
+  <section class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="task-edit-title">
+    <header class="modal-header">
+      <h3 id="task-edit-title">编辑任务</h3>
+      <button type="button" class="modal-close-btn" data-modal-close aria-label="关闭">×</button>
+    </header>
+
+    <form id="task-edit-form" method="post" class="form-grid">
+      <input type="hidden" name="next" value="{{ manage_next_url }}">
+      <label>
+        任务名称
+        <input type="text" name="task_name" id="edit-task-name" required>
+      </label>
+      <label>
+        标签
+        <input type="text" name="tag" id="edit-task-tag" list="task-tag-options">
+      </label>
+      <label>
+        任务类型
+        <select name="task_type" id="edit-task-type" required>
+          <option value="作业">作业</option>
+          <option value="实验">实验</option>
+          <option value="阅读">阅读</option>
+          <option value="复习">复习</option>
+          <option value="报告">报告</option>
+          <option value="项目">项目</option>
+          <option value="事务">事务</option>
+        </select>
+      </label>
+      <label>
+        截止日期
+        <input type="date" name="deadline" id="edit-task-deadline" required>
+      </label>
+      <label>
+        预计耗时（小时）
+        <input type="number" name="estimated_hours" id="edit-task-estimated-hours" step="0.5" min="0.5" max="24" required>
+      </label>
+      <label>
+        难度（1-5）
+        <select name="difficulty" id="edit-task-difficulty" required>
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+          <option value="5">5</option>
+        </select>
+      </label>
+      <label>
+        重要程度（1-5）
+        <select name="importance" id="edit-task-importance" required>
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+          <option value="5">5</option>
+        </select>
+      </label>
+      <label>
+        状态
+        <select name="status" id="edit-task-status" required>
+          <option value="未完成">未完成</option>
+          <option value="今日关注">今日关注</option>
+          <option value="已完成">已完成</option>
+        </select>
+      </label>
+      <label class="full-width">
+        备注
+        <textarea name="note" id="edit-task-note" rows="3"></textarea>
+      </label>
+
+      <div class="full-width reason-display">
+        <h4>推荐理由：</h4>
+        <p id="edit-task-reason">暂无推荐理由</p>
+      </div>
+
+      <div class="full-width modal-actions">
+        <button type="submit" class="btn-primary">保存修改</button>
+        <button type="button" class="btn-danger" id="task-delete-trigger">删除任务</button>
+        <button type="button" class="btn-ghost" data-modal-close>取消</button>
+      </div>
+    </form>
+
+    <form id="task-delete-form" method="post" class="hidden-inline-form">
+      <input type="hidden" name="next" value="{{ manage_next_url }}">
+    </form>
+  </section>
+</div>
+
+<datalist id="task-tag-options">
+  {% for tag in task_tag_options %}
+  <option value="{{ tag }}"></option>
+  {% endfor %}
+</datalist>
 {% endblock %}

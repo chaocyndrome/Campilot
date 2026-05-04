@@ -6,16 +6,6 @@
   <p>通过完成任务积累积分，按自己的节奏兑换奖励并追踪成长。</p>
 </section>
 
-{% with messages = get_flashed_messages(with_categories=true) %}
-  {% if messages %}
-  <section class="flash-list">
-    {% for category, message in messages %}
-    <div class="flash-message {{ category }}">{{ message }}</div>
-    {% endfor %}
-  </section>
-  {% endif %}
-{% endwith %}
-
 <section class="grid-2">
   <article class="card">
     <h3>积分概览</h3>

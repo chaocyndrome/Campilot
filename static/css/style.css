@@ -318,41 +318,108 @@ body {
   flex-wrap: wrap;
 }
 
-.timeline-list {
-  display: grid;
-  gap: 16px;
+.timeline-board {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  padding: 4px 2px 10px;
 }
 
-.timeline-day-card h3 {
-  margin-bottom: 12px;
+.timeline-column {
+  flex: 0 0 260px;
+  min-width: 260px;
+  height: 70vh;
+  overflow-y: auto;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+  padding: 12px;
 }
 
-.timeline-block {
+.timeline-column-header {
+  position: sticky;
+  top: 0;
+  background: var(--card);
+  padding-bottom: 10px;
   margin-bottom: 10px;
+  border-bottom: 1px dashed var(--border);
+  z-index: 1;
 }
 
-.timeline-block h4 {
-  margin: 0 0 6px;
+.timeline-date {
+  font-weight: 700;
   font-size: 1rem;
 }
 
-.timeline-status {
-  border-top: 1px dashed var(--border);
-  padding-top: 10px;
-  margin-top: 6px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.timeline-status span {
-  font-weight: 600;
-}
-
-.timeline-status small {
+.timeline-weekday {
   color: var(--muted);
+  font-size: 0.9rem;
+  margin-top: 2px;
+}
+
+.status-badge {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.status-badge.busy {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #991b1b;
+}
+
+.status-badge.normal {
+  background: #fef3c7;
+  border-color: #fcd34d;
+  color: #92400e;
+}
+
+.status-badge.free {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #166534;
+}
+
+.timeline-section + .timeline-section {
+  margin-top: 12px;
+}
+
+.timeline-section h4 {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+}
+
+.timeline-items {
+  display: grid;
+  gap: 8px;
+}
+
+.timeline-item {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 9px;
+  background: #f9fbff;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.timeline-item.empty {
+  color: var(--muted);
+  background: #fff;
+}
+
+.item-meta {
+  color: #64748b;
+  font-size: 0.82rem;
 }
 
 .stats-grid {

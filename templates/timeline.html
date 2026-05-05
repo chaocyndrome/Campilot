@@ -3,51 +3,57 @@
 {% block content %}
 <section class="page-header card">
   <h2>本周时间线</h2>
-  <p>从今天开始展示未来 7 天的固定安排、DDL 与建议关注任务。</p>
+  <p>从今天开始展示未来 7 天的固定安排、DDL 与推荐关注任务。</p>
 </section>
 
-<section class="timeline-list">
+<section class="timeline-board">
   {% for day in timeline_days %}
-  <article class="card timeline-day-card">
-    <h3>{{ day.date_str }} {{ day.weekday }}</h3>
+  {% set status_class = 'busy' if day.status == '较忙' else 'normal' if day.status == '适中' else 'free' %}
+  <article class="timeline-column">
+    <header class="timeline-column-header">
+      <div class="timeline-date">{{ day.date_str }}</div>
+      <div class="timeline-weekday">{{ day.weekday }}</div>
+      <span class="status-badge {{ status_class }}">今日状态：{{ day.status }}</span>
+    </header>
 
-    <div class="timeline-block">
-      <h4>固定安排：</h4>
-      <ul>
+    <section class="timeline-section">
+      <h4>固定安排</h4>
+      <div class="timeline-items">
         {% for line in day.fixed_event_lines %}
-        <li>{{ line }}</li>
+        <div class="timeline-item">{{ line }}</div>
         {% else %}
-        <li>暂无固定安排</li>
+        <div class="timeline-item empty">暂无固定安排</div>
         {% endfor %}
-      </ul>
-    </div>
+      </div>
+    </section>
 
-    <div class="timeline-block">
-      <h4>今日 DDL：</h4>
-      <ul>
+    <section class="timeline-section">
+      <h4>今日 DDL</h4>
+      <div class="timeline-items">
         {% for task in day.ddl_tasks %}
-        <li>{{ task.task_name }}</li>
+        <div class="timeline-item">
+          <strong>{{ task.task_name }}</strong>
+          <span class="item-meta">优先级：{{ task.priority }}</span>
+        </div>
         {% else %}
-        <li>暂无今日 DDL</li>
+        <div class="timeline-item empty">暂无今日 DDL</div>
         {% endfor %}
-      </ul>
-    </div>
+      </div>
+    </section>
 
-    <div class="timeline-block">
-      <h4>推荐关注：</h4>
-      <ul>
+    <section class="timeline-section">
+      <h4>推荐关注</h4>
+      <div class="timeline-items">
         {% for task in day.recommended_tasks %}
-        <li>{{ task.task_name }}</li>
+        <div class="timeline-item">
+          <strong>{{ task.task_name }}</strong>
+          <span class="item-meta">DDL：{{ task.deadline }} ｜ 优先级：{{ task.priority }}</span>
+        </div>
         {% else %}
-        <li>暂无推荐关注任务</li>
+        <div class="timeline-item empty">暂无推荐关注任务</div>
         {% endfor %}
-      </ul>
-    </div>
-
-    <div class="timeline-status">
-      <span>今日状态：{{ day.status }}</span>
-      <small>固定安排 {{ day.total_event_hours }} 小时，DDL {{ day.ddl_count }} 项</small>
-    </div>
+      </div>
+    </section>
   </article>
   {% endfor %}
 </section>

@@ -24,7 +24,7 @@ def run_manual_tests():
                 "estimated_hours": 0.5,
                 "difficulty": 1,
                 "importance": 1,
-                "task_type": "阅读"
+                "task_type": "预习"
             }
         },
         {

@@ -29,7 +29,7 @@ def create_sample_dataset(
 ):
     random.seed(random_state)
 
-    task_types = ["作业", "实验", "阅读", "复习", "报告", "项目", "事务"]
+    task_types = ["作业", "实验", "预习", "复习", "报告", "项目", "事务"]
     records = []
 
     for _ in range(n_samples):

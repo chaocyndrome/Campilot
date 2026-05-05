@@ -23,7 +23,7 @@
         <select name="task_type" required>
           <option value="作业">作业</option>
           <option value="实验">实验</option>
-          <option value="阅读">阅读</option>
+          <option value="预习">预习</option>
           <option value="复习">复习</option>
           <option value="报告">报告</option>
           <option value="项目">项目</option>
@@ -74,8 +74,14 @@
         <input type="text" name="event_name" required>
       </label>
       <label>
-        标签
-        <input type="text" name="tag" placeholder="例如：课程">
+        类型
+        <select name="event_type" required>
+          <option value="课程">课程</option>
+          <option value="会议">会议</option>
+          <option value="社交">社交</option>
+          <option value="生活">生活</option>
+          <option value="其他">其他</option>
+        </select>
       </label>
       <label>
         日期
@@ -88,16 +94,6 @@
       <label>
         结束时间
         <input type="time" name="end_time" required>
-      </label>
-      <label>
-        类型
-        <select name="event_type" required>
-          <option value="课程">课程</option>
-          <option value="会议">会议</option>
-          <option value="社交">社交</option>
-          <option value="生活">生活</option>
-          <option value="其他">其他</option>
-        </select>
       </label>
       <label class="full-width">
         备注
@@ -177,7 +173,6 @@
           <th>日期</th>
           <th>时间</th>
           <th>安排名称</th>
-          <th>标签</th>
           <th>类型</th>
           <th>操作</th>
         </tr>
@@ -188,7 +183,6 @@
           <td>{{ event.date }}</td>
           <td>{{ event.start_time }} - {{ event.end_time }}</td>
           <td>{{ event.event_name }}</td>
-          <td>{{ event.tag }}</td>
           <td>{{ event.event_type }}</td>
           <td>
             <form method="post" action="{{ url_for('delete_event', event_id=event.event_id) }}">
@@ -199,7 +193,7 @@
         </tr>
         {% else %}
         <tr>
-          <td colspan="6">暂无固定安排</td>
+          <td colspan="5">暂无固定安排</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -229,7 +223,7 @@
         <select name="task_type" id="edit-task-type" required>
           <option value="作业">作业</option>
           <option value="实验">实验</option>
-          <option value="阅读">阅读</option>
+          <option value="预习">预习</option>
           <option value="复习">复习</option>
           <option value="报告">报告</option>
           <option value="项目">项目</option>

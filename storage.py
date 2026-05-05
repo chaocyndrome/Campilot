@@ -39,11 +39,10 @@ TASK_COLUMNS = [
 EVENT_COLUMNS = [
     "event_id",
     "event_name",
-    "tag",
+    "event_type",
     "date",
     "start_time",
     "end_time",
-    "event_type",
     "note",
 ]
 
@@ -59,6 +58,7 @@ DEFAULT_REWARDS = [
 
 DEFAULT_USER_STATS = {"current_points": 0, "total_points": 0, "completed_tasks": 0}
 PRIORITY_BONUS = {"高": 20, "中": 10, "低": 5}
+EVENT_TYPE_OPTIONS = {"课程", "会议", "社交", "生活", "其他"}
 
 _CACHED_MODEL = None
 
@@ -163,8 +163,12 @@ def _normalize_events_df(df):
     normalized = normalized[EVENT_COLUMNS]
 
     normalized["event_id"] = pd.to_numeric(normalized["event_id"], errors="coerce")
-    for col in ["event_name", "tag", "date", "start_time", "end_time", "event_type", "note"]:
+    for col in ["event_name", "date", "start_time", "end_time", "event_type", "note"]:
         normalized[col] = normalized[col].fillna("").astype(str)
+
+    normalized["event_type"] = normalized["event_type"].apply(
+        lambda value: value if value in EVENT_TYPE_OPTIONS else "其他"
+    )
 
     return normalized
 
@@ -487,8 +491,7 @@ def add_event(event_data):
     新增固定安排。
 
     Args:
-        event_data (dict): 包含 event_name, tag, date, start_time, end_time,
-            event_type, note。
+        event_data (dict): 包含 event_name, event_type, date, start_time, end_time, note。
 
     Returns:
         dict: 新增后的固定安排字典。
@@ -496,14 +499,17 @@ def add_event(event_data):
     events_df = load_events()
     event_id = _next_id(events_df, "event_id")
 
+    event_type = str(event_data.get("event_type", "")).strip()
+    if event_type not in EVENT_TYPE_OPTIONS:
+        event_type = "其他"
+
     new_event = {
         "event_id": event_id,
         "event_name": event_data.get("event_name", ""),
-        "tag": event_data.get("tag", ""),
+        "event_type": event_type,
         "date": str(event_data.get("date", "")),
         "start_time": str(event_data.get("start_time", "")),
         "end_time": str(event_data.get("end_time", "")),
-        "event_type": event_data.get("event_type", ""),
         "note": event_data.get("note", ""),
     }
 
@@ -649,11 +655,10 @@ if __name__ == "__main__":
 
     sample_event = {
         "event_name": "线性代数课程",
-        "tag": "课程",
+        "event_type": "课程",
         "date": (date.today() + timedelta(days=1)).isoformat(),
         "start_time": "09:00",
         "end_time": "10:30",
-        "event_type": "上课",
         "note": "按时到教室",
     }
     added_event = add_event(sample_event)

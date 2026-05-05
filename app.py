@@ -89,11 +89,11 @@ def _event_hours(start_time, end_time):
     return (end_minutes - start_minutes) / 60
 
 
-def _daily_status(total_hours, ddl_count):
-    """根据固定安排时长与 DDL 数量计算当日状态。"""
-    if total_hours > 5 or ddl_count >= 2:
+def _daily_status(total_hours, _ddl_count=None):
+    """根据固定安排总时长计算当日状态。"""
+    if total_hours >= 5:
         return "较忙"
-    if 2 <= total_hours <= 5 or ddl_count == 1:
+    if 2 <= total_hours < 5:
         return "适中"
     return "较空"
 
@@ -120,8 +120,11 @@ def today():
     context = _load_page_data()
 
     unfinished_tasks = [task for task in context["tasks"] if task.get("status") != "已完成"]
+    recommendable_tasks = [
+        task for task in unfinished_tasks if task.get("status") != "今日关注"
+    ]
     recommended_tasks = sorted(
-        unfinished_tasks,
+        recommendable_tasks,
         key=lambda task: (
             _priority_rank(task.get("priority")),
             _safe_days_left(task.get("days_left")),
@@ -186,7 +189,10 @@ def timeline():
             ),
         )
         fixed_event_lines = [
-            f"{event.get('start_time', '')}-{event.get('end_time', '')} {event.get('event_name', '')}"
+            (
+                f"{event.get('start_time', '')}-{event.get('end_time', '')} "
+                f"[{event.get('event_type', '其他') or '其他'}] {event.get('event_name', '')}"
+            )
             for event in day_events_sorted
         ]
 
@@ -195,6 +201,9 @@ def timeline():
         for task in unfinished_tasks:
             deadline_date = _parse_date(task.get("deadline"))
             if deadline_date is None:
+                continue
+            # 已过 DDL 的任务不在该日期列中展示（含推荐关注）。
+            if deadline_date < current_day:
                 continue
 
             if deadline_date == current_day:
@@ -320,11 +329,10 @@ def add_event():
     """处理固定安排新增请求。"""
     event_data = {
         "event_name": request.form.get("event_name", "").strip(),
-        "tag": request.form.get("tag", "").strip(),
+        "event_type": request.form.get("event_type", "").strip(),
         "date": request.form.get("date", "").strip(),
         "start_time": request.form.get("start_time", "").strip(),
         "end_time": request.form.get("end_time", "").strip(),
-        "event_type": request.form.get("event_type", "").strip(),
         "note": request.form.get("note", "").strip(),
     }
 

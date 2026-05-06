@@ -50,10 +50,28 @@ def _safe_number(value, default=0):
         return default
 
 
+def _to_bool(value):
+    """将常见输入安全转为布尔值。"""
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"1", "true", "yes", "y", "是"}
+
+
 def _priority_rank(priority):
     """优先级排序映射：高 > 中 > 低。"""
     rank_map = {"高": 0, "中": 1, "低": 2}
     return rank_map.get(str(priority), 3)
+
+
+def _task_sort_key_for_manage(task):
+    """添加/管理页任务排序：优先级 > DDL > 重要程度。"""
+    deadline_date = _parse_date(task.get("deadline"))
+    deadline_rank = deadline_date or date.max
+    return (
+        _priority_rank(task.get("priority")),
+        deadline_rank,
+        -_safe_number(task.get("importance")),
+    )
 
 
 def _parse_date(value):
@@ -192,6 +210,7 @@ def timeline():
             (
                 f"{event.get('start_time', '')}-{event.get('end_time', '')} "
                 f"[{event.get('event_type', '其他') or '其他'}] {event.get('event_name', '')}"
+                f"{'（重复）' if _to_bool(event.get('is_repeated')) else ''}"
             )
             for event in day_events_sorted
         ]
@@ -288,15 +307,26 @@ def manage():
     tasks = all_tasks
     if show_mode == "active":
         tasks = [task for task in tasks if task.get("status") != "已完成"]
+    tasks = sorted(tasks, key=_task_sort_key_for_manage)
 
     context.update(
         {
             "active_page": "manage",
             "tasks": tasks,
+            "events": context["events"],
             "task_tag_options": tag_options,
             "show_mode": show_mode,
             "show_label": "显示未完成" if show_mode == "active" else "显示所有",
             "manage_next_url": url_for("manage", show=show_mode),
+            "weekday_options": [
+                {"value": 0, "label": "周一"},
+                {"value": 1, "label": "周二"},
+                {"value": 2, "label": "周三"},
+                {"value": 3, "label": "周四"},
+                {"value": 4, "label": "周五"},
+                {"value": 5, "label": "周六"},
+                {"value": 6, "label": "周日"},
+            ],
         }
     )
     return render_template("manage.html", **context)
@@ -334,14 +364,67 @@ def add_event():
         "start_time": request.form.get("start_time", "").strip(),
         "end_time": request.form.get("end_time", "").strip(),
         "note": request.form.get("note", "").strip(),
+        "is_repeated": request.form.get("is_repeated", "false").strip(),
+        "repeat_frequency": request.form.get("repeat_frequency", "").strip(),
+        "repeat_interval": request.form.get("repeat_interval", "1").strip(),
+        "repeat_weekdays": request.form.getlist("repeat_weekdays"),
+        "repeat_end_type": request.form.get("repeat_end_type", "count").strip(),
+        "repeat_count": request.form.get("repeat_count", "").strip(),
+        "repeat_until": request.form.get("repeat_until", "").strip(),
     }
 
     try:
-        storage.add_event(event_data)
-        flash("固定安排添加成功", "success")
+        created_events = storage.add_event(event_data)
+        created_count = len(created_events)
+        if created_count <= 1:
+            flash("固定安排添加成功", "success")
+        else:
+            flash(f"固定安排添加成功，共生成 {created_count} 条", "success")
     except Exception as exc:
         flash(f"固定安排添加失败：{exc}", "error")
     return redirect(url_for("manage"))
+
+
+@app.route("/events/update/<event_id>", methods=["POST"])
+def update_event(event_id):
+    """更新固定安排。"""
+    update_scope = request.form.get("update_scope", "single").strip().lower()
+    if update_scope not in {"single", "group"}:
+        update_scope = "single"
+
+    event_data = {
+        "event_name": request.form.get("event_name", "").strip(),
+        "event_type": request.form.get("event_type", "").strip(),
+        "date": request.form.get("date", "").strip(),
+        "start_time": request.form.get("start_time", "").strip(),
+        "end_time": request.form.get("end_time", "").strip(),
+        "note": request.form.get("note", "").strip(),
+        "is_repeated": request.form.get("is_repeated", "false").strip(),
+        "repeat_frequency": request.form.get("repeat_frequency", "").strip(),
+        "repeat_interval": request.form.get("repeat_interval", "1").strip(),
+        "repeat_weekdays": request.form.getlist("repeat_weekdays"),
+        "repeat_end_type": request.form.get("repeat_end_type", "count").strip(),
+        "repeat_count": request.form.get("repeat_count", "").strip(),
+        "repeat_until": request.form.get("repeat_until", "").strip(),
+    }
+
+    try:
+        result = storage.update_event(event_id, event_data, update_scope=update_scope)
+        if result.get("mode") == "group":
+            flash(
+                f"固定安排已更新，共重建 {int(result.get('updated_count', 0))} 条",
+                "success",
+            )
+        elif result.get("mode") == "single_to_group":
+            flash(
+                f"固定安排已更新，并生成重复安排共 {int(result.get('updated_count', 0))} 条",
+                "success",
+            )
+        else:
+            flash("固定安排已更新", "success")
+    except Exception as exc:
+        flash(f"固定安排更新失败：{exc}", "error")
+    return _redirect_back(default_endpoint="manage")
 
 
 @app.route("/tasks/delete/<task_id>", methods=["POST"])
@@ -422,9 +505,16 @@ def complete_task(task_id):
 @app.route("/events/delete/<event_id>", methods=["POST"])
 def delete_event(event_id):
     """删除固定安排。"""
-    is_deleted = storage.delete_event(event_id)
-    if is_deleted:
-        flash("固定安排删除成功", "success")
+    delete_scope = request.form.get("delete_scope", "single").strip().lower()
+    if delete_scope not in {"single", "group"}:
+        delete_scope = "single"
+
+    deleted_count = storage.delete_event(event_id, delete_scope=delete_scope)
+    if deleted_count > 0:
+        if delete_scope == "group" and deleted_count > 1:
+            flash(f"固定安排删除成功，共删除 {deleted_count} 条", "success")
+        else:
+            flash("固定安排删除成功", "success")
     else:
         flash("固定安排不存在或已删除", "error")
     return _redirect_back(default_endpoint="manage")

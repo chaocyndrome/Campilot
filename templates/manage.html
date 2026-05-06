@@ -68,7 +68,7 @@
 
   <article class="card">
     <h3>添加固定安排表单</h3>
-    <form method="post" action="{{ url_for('add_event') }}" class="form-grid">
+    <form method="post" action="{{ url_for('add_event') }}" class="form-grid" id="event-add-form">
       <label>
         安排名称
         <input type="text" name="event_name" required>
@@ -95,10 +95,65 @@
         结束时间
         <input type="time" name="end_time" required>
       </label>
+      <label>
+        是否重复
+        <select name="is_repeated" id="event-is-repeated">
+          <option value="false" selected>否</option>
+          <option value="true">是</option>
+        </select>
+      </label>
       <label class="full-width">
         备注
         <textarea name="note" rows="3" placeholder="安排补充说明"></textarea>
       </label>
+      <div class="full-width repeat-settings" id="event-repeat-settings" hidden>
+        <div class="repeat-settings-grid">
+          <label>
+            重复频率
+            <select name="repeat_frequency" id="event-repeat-frequency">
+              <option value="daily">每天</option>
+              <option value="weekly" selected>每周</option>
+              <option value="monthly">每月</option>
+            </select>
+          </label>
+          <label>
+            重复间隔
+            <input type="number" name="repeat_interval" id="event-repeat-interval" min="1" step="1" value="1">
+          </label>
+          <fieldset class="full-width repeat-weekdays-wrap" id="event-repeat-weekdays-wrap">
+            <legend>每周重复（可多选）</legend>
+            <div class="weekday-options">
+              {% for weekday in weekday_options %}
+              <label class="weekday-option">
+                <input type="checkbox" name="repeat_weekdays" value="{{ weekday.value }}">
+                <span>{{ weekday.label }}</span>
+              </label>
+              {% endfor %}
+            </div>
+          </fieldset>
+          <fieldset class="full-width repeat-end-wrap">
+            <legend>结束方式</legend>
+            <div class="repeat-end-options">
+              <label>
+                <input type="radio" name="repeat_end_type" value="count" checked>
+                <span>按次数结束</span>
+              </label>
+              <label>
+                <input type="radio" name="repeat_end_type" value="until">
+                <span>按日期结束</span>
+              </label>
+            </div>
+          </fieldset>
+          <label id="event-repeat-count-wrap">
+            重复次数（最多 60）
+            <input type="number" name="repeat_count" id="event-repeat-count" min="1" max="60" step="1" value="1">
+          </label>
+          <label id="event-repeat-until-wrap" hidden>
+            结束日期
+            <input type="date" name="repeat_until" id="event-repeat-until">
+          </label>
+        </div>
+      </div>
       <button type="submit" class="btn-primary">添加固定安排</button>
     </form>
   </article>
@@ -174,6 +229,7 @@
           <th>时间</th>
           <th>安排名称</th>
           <th>类型</th>
+          <th>重复</th>
           <th>操作</th>
         </tr>
       </thead>
@@ -182,18 +238,49 @@
         <tr>
           <td>{{ event.date }}</td>
           <td>{{ event.start_time }} - {{ event.end_time }}</td>
-          <td>{{ event.event_name }}</td>
+          <td>
+            <button
+              type="button"
+              class="event-name-trigger"
+              data-event='{{ event|tojson }}'
+            >
+              {{ event.event_name }}
+            </button>
+          </td>
           <td>{{ event.event_type }}</td>
           <td>
-            <form method="post" action="{{ url_for('delete_event', event_id=event.event_id) }}">
-              <input type="hidden" name="next" value="{{ manage_next_url }}">
-              <button type="submit" class="btn-danger">删除</button>
-            </form>
+            {% if event.is_repeated %}
+              是
+            {% else %}
+              否
+            {% endif %}
+          </td>
+          <td>
+            <div class="event-actions">
+              {% if event.is_repeated %}
+              <form method="post" action="{{ url_for('delete_event', event_id=event.event_id) }}">
+                <input type="hidden" name="next" value="{{ manage_next_url }}">
+                <input type="hidden" name="delete_scope" value="single">
+                <button type="submit" class="btn-danger">删本次</button>
+              </form>
+              <form method="post" action="{{ url_for('delete_event', event_id=event.event_id) }}">
+                <input type="hidden" name="next" value="{{ manage_next_url }}">
+                <input type="hidden" name="delete_scope" value="group">
+                <button type="submit" class="btn-danger">删整组</button>
+              </form>
+              {% else %}
+              <form method="post" action="{{ url_for('delete_event', event_id=event.event_id) }}">
+                <input type="hidden" name="next" value="{{ manage_next_url }}">
+                <input type="hidden" name="delete_scope" value="single">
+                <button type="submit" class="btn-danger">删除</button>
+              </form>
+              {% endif %}
+            </div>
           </td>
         </tr>
         {% else %}
         <tr>
-          <td colspan="5">暂无固定安排</td>
+          <td colspan="6">暂无固定安排</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -285,6 +372,124 @@
 
     <form id="task-delete-form" method="post" class="hidden-inline-form">
       <input type="hidden" name="next" value="{{ manage_next_url }}">
+    </form>
+  </section>
+</div>
+
+<div class="modal-backdrop" id="event-edit-modal" hidden>
+  <section class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="event-edit-title">
+    <header class="modal-header">
+      <h3 id="event-edit-title">编辑固定安排</h3>
+      <button type="button" class="modal-close-btn" data-event-modal-close aria-label="关闭">×</button>
+    </header>
+
+    <form id="event-edit-form" method="post" class="form-grid">
+      <input type="hidden" name="next" value="{{ manage_next_url }}">
+      <label>
+        安排名称
+        <input type="text" name="event_name" id="edit-event-name" required>
+      </label>
+      <label>
+        类型
+        <select name="event_type" id="edit-event-type" required>
+          <option value="课程">课程</option>
+          <option value="会议">会议</option>
+          <option value="社交">社交</option>
+          <option value="生活">生活</option>
+          <option value="其他">其他</option>
+        </select>
+      </label>
+      <label>
+        日期
+        <input type="date" name="date" id="edit-event-date" required>
+      </label>
+      <label>
+        开始时间
+        <input type="time" name="start_time" id="edit-event-start-time" required>
+      </label>
+      <label>
+        结束时间
+        <input type="time" name="end_time" id="edit-event-end-time" required>
+      </label>
+      <label>
+        是否重复
+        <select name="is_repeated" id="edit-event-is-repeated">
+          <option value="false">否</option>
+          <option value="true">是</option>
+        </select>
+      </label>
+      <label class="full-width">
+        备注
+        <textarea name="note" id="edit-event-note" rows="3"></textarea>
+      </label>
+
+      <fieldset class="full-width" id="event-update-scope-wrap" hidden>
+        <legend>编辑范围</legend>
+        <div class="repeat-end-options">
+          <label>
+            <input type="radio" name="update_scope" value="single" checked>
+            <span>只修改这一次</span>
+          </label>
+          <label>
+            <input type="radio" name="update_scope" value="group">
+            <span>修改整个重复安排</span>
+          </label>
+        </div>
+      </fieldset>
+
+      <div class="full-width repeat-settings" id="event-edit-repeat-settings" hidden>
+        <div class="repeat-settings-grid">
+          <label>
+            重复频率
+            <select name="repeat_frequency" id="edit-event-repeat-frequency">
+              <option value="daily">每天</option>
+              <option value="weekly" selected>每周</option>
+              <option value="monthly">每月</option>
+            </select>
+          </label>
+          <label>
+            重复间隔
+            <input type="number" name="repeat_interval" id="edit-event-repeat-interval" min="1" step="1" value="1">
+          </label>
+          <fieldset class="full-width repeat-weekdays-wrap" id="edit-event-repeat-weekdays-wrap">
+            <legend>每周重复（可多选）</legend>
+            <div class="weekday-options">
+              {% for weekday in weekday_options %}
+              <label class="weekday-option">
+                <input type="checkbox" name="repeat_weekdays" value="{{ weekday.value }}">
+                <span>{{ weekday.label }}</span>
+              </label>
+              {% endfor %}
+            </div>
+          </fieldset>
+          <fieldset class="full-width repeat-end-wrap">
+            <legend>结束方式</legend>
+            <div class="repeat-end-options">
+              <label>
+                <input type="radio" name="repeat_end_type" value="count" checked>
+                <span>按次数结束</span>
+              </label>
+              <label>
+                <input type="radio" name="repeat_end_type" value="until">
+                <span>按日期结束</span>
+              </label>
+            </div>
+          </fieldset>
+          <label id="edit-event-repeat-count-wrap">
+            重复次数（最多 60）
+            <input type="number" name="repeat_count" id="edit-event-repeat-count" min="1" max="60" step="1" value="1">
+          </label>
+          <label id="edit-event-repeat-until-wrap" hidden>
+            结束日期
+            <input type="date" name="repeat_until" id="edit-event-repeat-until">
+          </label>
+        </div>
+      </div>
+
+      <div class="full-width modal-actions">
+        <button type="submit" class="btn-primary">保存修改</button>
+        <button type="button" class="btn-ghost" data-event-modal-close>取消</button>
+      </div>
     </form>
   </section>
 </div>

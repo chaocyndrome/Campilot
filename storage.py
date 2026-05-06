@@ -1,6 +1,7 @@
 """Campilot 数据读写与业务逻辑层。"""
 
 import json
+from calendar import monthrange
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -44,6 +45,9 @@ EVENT_COLUMNS = [
     "start_time",
     "end_time",
     "note",
+    "is_repeated",
+    "repeat_group_id",
+    "created_at",
 ]
 
 REWARD_COLUMNS = ["reward_id", "reward_name", "cost", "description"]
@@ -59,6 +63,9 @@ DEFAULT_REWARDS = [
 DEFAULT_USER_STATS = {"current_points": 0, "total_points": 0, "completed_tasks": 0}
 PRIORITY_BONUS = {"高": 20, "中": 10, "低": 5}
 EVENT_TYPE_OPTIONS = {"课程", "会议", "社交", "生活", "其他"}
+REPEAT_FREQUENCY_OPTIONS = {"daily", "weekly", "monthly"}
+REPEAT_END_TYPE_OPTIONS = {"count", "until"}
+MAX_REPEAT_EVENT_COUNT = 60
 
 _CACHED_MODEL = None
 
@@ -154,6 +161,350 @@ def _normalize_tasks_df(df):
     return normalized
 
 
+def _refresh_days_left(df):
+    """按当前日期实时刷新 days_left。"""
+    refreshed = df.copy()
+    deadline_series = pd.to_datetime(refreshed["deadline"], errors="coerce")
+    today_ts = pd.Timestamp(date.today())
+    refreshed["days_left"] = (deadline_series - today_ts).dt.days
+    return refreshed
+
+
+def _to_bool(value):
+    """将常见输入安全转为布尔值。"""
+    if isinstance(value, bool):
+        return value
+    text = str(value).strip().lower()
+    return text in {"1", "true", "yes", "y", "是"}
+
+
+def _parse_date_or_raise(value, field_name):
+    """解析日期字段（YYYY-MM-DD）。"""
+    text = str(value).strip()
+    try:
+        return datetime.strptime(text, "%Y-%m-%d").date()
+    except ValueError as exc:
+        raise ValueError(f"{field_name} 格式无效，请使用 YYYY-MM-DD") from exc
+
+
+def _parse_time_or_raise(value, field_name):
+    """解析时间字段（HH:MM 或 HH:MM:SS）。"""
+    text = str(value).strip()
+    for fmt in ("%H:%M", "%H:%M:%S"):
+        try:
+            return datetime.strptime(text, fmt).time()
+        except ValueError:
+            continue
+    raise ValueError(f"{field_name} 格式无效，请使用 HH:MM")
+
+
+def _parse_positive_int(value, field_name, max_value=None):
+    """解析正整数并做上限校验。"""
+    try:
+        number = int(str(value).strip())
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{field_name} 必须为正整数") from exc
+    if number <= 0:
+        raise ValueError(f"{field_name} 必须为正整数")
+    if max_value is not None and number > max_value:
+        raise ValueError(f"{field_name} 不能超过 {max_value}")
+    return number
+
+
+def _normalize_repeat_frequency(value):
+    """标准化重复频率值。"""
+    mapping = {
+        "daily": "daily",
+        "每天": "daily",
+        "weekly": "weekly",
+        "每周": "weekly",
+        "monthly": "monthly",
+        "每月": "monthly",
+    }
+    normalized = mapping.get(str(value).strip().lower())
+    if normalized not in REPEAT_FREQUENCY_OPTIONS:
+        raise ValueError("repeat_frequency 仅支持 每天 / 每周 / 每月")
+    return normalized
+
+
+def _normalize_repeat_end_type(value):
+    """标准化重复结束方式。"""
+    mapping = {
+        "count": "count",
+        "按次数结束": "count",
+        "until": "until",
+        "按日期结束": "until",
+    }
+    normalized = mapping.get(str(value).strip().lower(), str(value).strip())
+    if normalized not in REPEAT_END_TYPE_OPTIONS:
+        raise ValueError("repeat_end_type 仅支持 按次数结束 / 按日期结束")
+    return normalized
+
+
+def _normalize_repeat_weekdays(values):
+    """标准化每周重复的星期参数（0-6，周一到周日）。"""
+    if values is None:
+        values = []
+    if not isinstance(values, (list, tuple, set)):
+        values = [values]
+
+    weekday_aliases = {
+        "0": 0,
+        "1": 1,
+        "2": 2,
+        "3": 3,
+        "4": 4,
+        "5": 5,
+        "6": 6,
+        "周一": 0,
+        "周二": 1,
+        "周三": 2,
+        "周四": 3,
+        "周五": 4,
+        "周六": 5,
+        "周日": 6,
+        "星期一": 0,
+        "星期二": 1,
+        "星期三": 2,
+        "星期四": 3,
+        "星期五": 4,
+        "星期六": 5,
+        "星期日": 6,
+    }
+
+    normalized = set()
+    for item in values:
+        text = str(item).strip()
+        if text in weekday_aliases:
+            normalized.add(weekday_aliases[text])
+
+    return sorted(normalized)
+
+
+def _validate_event_time_range(start_time, end_time):
+    """校验固定安排时间段：仅支持同一天内结束时间晚于开始时间。"""
+    if end_time <= start_time:
+        raise ValueError("end_time 必须晚于 start_time，且暂不支持跨天安排")
+
+
+def _normalize_event_input(event_data):
+    """标准化并校验固定安排通用字段。"""
+    event_name = str(event_data.get("event_name", "")).strip()
+    if not event_name:
+        raise ValueError("event_name 不能为空")
+
+    event_type = str(event_data.get("event_type", "")).strip()
+    if event_type not in EVENT_TYPE_OPTIONS:
+        event_type = "其他"
+
+    event_date = _parse_date_or_raise(event_data.get("date", ""), "date")
+    start_time_obj = _parse_time_or_raise(event_data.get("start_time", ""), "start_time")
+    end_time_obj = _parse_time_or_raise(event_data.get("end_time", ""), "end_time")
+    _validate_event_time_range(start_time_obj, end_time_obj)
+
+    return {
+        "event_name": event_name,
+        "event_type": event_type,
+        "date": event_date,
+        "start_time": start_time_obj.strftime("%H:%M"),
+        "end_time": end_time_obj.strftime("%H:%M"),
+        "note": str(event_data.get("note", "")).strip(),
+    }
+
+
+def _parse_repeat_config(event_data, start_date):
+    """解析重复规则与结束方式。"""
+    repeat_frequency = _normalize_repeat_frequency(event_data.get("repeat_frequency", ""))
+    repeat_interval = _parse_positive_int(
+        event_data.get("repeat_interval", 1), "repeat_interval"
+    )
+    repeat_end_type = _normalize_repeat_end_type(event_data.get("repeat_end_type", "count"))
+
+    repeat_weekdays = []
+    if repeat_frequency == "weekly":
+        repeat_weekdays = _normalize_repeat_weekdays(event_data.get("repeat_weekdays"))
+        if not repeat_weekdays:
+            raise ValueError("每周重复时，必须至少选择一个星期")
+
+    repeat_count = None
+    repeat_until = None
+    if repeat_end_type == "count":
+        repeat_count = _parse_positive_int(
+            event_data.get("repeat_count", 1),
+            "repeat_count",
+            max_value=MAX_REPEAT_EVENT_COUNT,
+        )
+    else:
+        repeat_until = _parse_date_or_raise(event_data.get("repeat_until", ""), "repeat_until")
+        if repeat_until < start_date:
+            raise ValueError("repeat_until 不能早于开始日期")
+
+    return {
+        "repeat_frequency": repeat_frequency,
+        "repeat_interval": repeat_interval,
+        "repeat_weekdays": repeat_weekdays,
+        "repeat_end_type": repeat_end_type,
+        "repeat_count": repeat_count,
+        "repeat_until": repeat_until,
+    }
+
+
+def _generate_daily_dates(start_date, repeat_interval, repeat_end_type, repeat_count, repeat_until):
+    """生成按天重复的日期序列。"""
+    if repeat_end_type == "count":
+        return [start_date + timedelta(days=repeat_interval * i) for i in range(repeat_count)]
+
+    dates = []
+    current = start_date
+    while current <= repeat_until:
+        if len(dates) >= MAX_REPEAT_EVENT_COUNT:
+            raise ValueError(f"按日期结束最多生成 {MAX_REPEAT_EVENT_COUNT} 条固定安排")
+        dates.append(current)
+        current = current + timedelta(days=repeat_interval)
+    return dates
+
+
+def _generate_weekly_dates(start_date, repeat_interval, repeat_weekdays, repeat_end_type, repeat_count, repeat_until):
+    """生成按周重复的日期序列（支持多选星期）。"""
+    start_week_monday = start_date - timedelta(days=start_date.weekday())
+    weekday_list = sorted(set(repeat_weekdays))
+    dates = []
+    interval_index = 0
+
+    while True:
+        week_base = start_week_monday + timedelta(weeks=interval_index * repeat_interval)
+        if repeat_end_type == "until" and week_base > repeat_until + timedelta(days=6):
+            break
+
+        for weekday in weekday_list:
+            candidate = week_base + timedelta(days=weekday)
+            if candidate < start_date:
+                continue
+            if repeat_end_type == "until" and candidate > repeat_until:
+                continue
+
+            if len(dates) >= MAX_REPEAT_EVENT_COUNT:
+                raise ValueError(f"按日期结束最多生成 {MAX_REPEAT_EVENT_COUNT} 条固定安排")
+
+            dates.append(candidate)
+            if repeat_end_type == "count" and len(dates) >= repeat_count:
+                return dates
+
+        interval_index += 1
+    return dates
+
+
+def _generate_monthly_dates(start_date, repeat_interval, repeat_end_type, repeat_count, repeat_until):
+    """生成按月重复的日期序列（按开始日重复，缺失日期月份跳过）。"""
+    target_day = start_date.day
+    start_month_index = start_date.year * 12 + (start_date.month - 1)
+    dates = []
+    step = 0
+
+    while True:
+        month_index = start_month_index + step * repeat_interval
+        year = month_index // 12
+        month = (month_index % 12) + 1
+
+        if repeat_end_type == "until":
+            until_month_index = repeat_until.year * 12 + (repeat_until.month - 1)
+            if month_index > until_month_index:
+                break
+
+        days_in_month = monthrange(year, month)[1]
+        if target_day <= days_in_month:
+            candidate = date(year, month, target_day)
+            if candidate >= start_date:
+                if repeat_end_type == "until":
+                    if candidate > repeat_until:
+                        break
+                    if len(dates) >= MAX_REPEAT_EVENT_COUNT:
+                        raise ValueError(
+                            f"按日期结束最多生成 {MAX_REPEAT_EVENT_COUNT} 条固定安排"
+                        )
+                    dates.append(candidate)
+                else:
+                    dates.append(candidate)
+                    if len(dates) >= repeat_count:
+                        return dates
+
+        step += 1
+    return dates
+
+
+def _generate_repeat_dates(start_date, repeat_config):
+    """按重复规则生成日期列表。"""
+    frequency = repeat_config["repeat_frequency"]
+    repeat_interval = repeat_config["repeat_interval"]
+    end_type = repeat_config["repeat_end_type"]
+    repeat_count = repeat_config["repeat_count"]
+    repeat_until = repeat_config["repeat_until"]
+    repeat_weekdays = repeat_config["repeat_weekdays"]
+
+    if frequency == "daily":
+        return _generate_daily_dates(
+            start_date, repeat_interval, end_type, repeat_count, repeat_until
+        )
+    if frequency == "weekly":
+        return _generate_weekly_dates(
+            start_date,
+            repeat_interval,
+            repeat_weekdays,
+            end_type,
+            repeat_count,
+            repeat_until,
+        )
+    return _generate_monthly_dates(
+        start_date, repeat_interval, end_type, repeat_count, repeat_until
+    )
+
+
+def _next_repeat_group_id(events_df):
+    """计算新的重复分组 ID。"""
+    if events_df.empty or "repeat_group_id" not in events_df.columns:
+        return 1
+    group_ids = pd.to_numeric(events_df["repeat_group_id"], errors="coerce").dropna()
+    if group_ids.empty:
+        return 1
+    return int(group_ids.max()) + 1
+
+
+def _build_new_event_rows(event_data, events_df, force_repeated=None):
+    """根据输入数据构建一条或多条固定安排记录。"""
+    normalized_input = _normalize_event_input(event_data)
+    start_date = normalized_input["date"]
+    is_repeated = _to_bool(event_data.get("is_repeated", False))
+    if force_repeated is not None:
+        is_repeated = bool(force_repeated)
+
+    repeat_group_id = pd.NA
+    dates = [start_date]
+    if is_repeated:
+        repeat_config = _parse_repeat_config(event_data, start_date)
+        dates = _generate_repeat_dates(start_date, repeat_config)
+        repeat_group_id = _next_repeat_group_id(events_df)
+
+    start_event_id = _next_id(events_df, "event_id")
+    created_at = _now_str()
+    rows = []
+    for idx, event_date in enumerate(dates):
+        rows.append(
+            {
+                "event_id": start_event_id + idx,
+                "event_name": normalized_input["event_name"],
+                "event_type": normalized_input["event_type"],
+                "date": event_date.isoformat(),
+                "start_time": normalized_input["start_time"],
+                "end_time": normalized_input["end_time"],
+                "note": normalized_input["note"],
+                "is_repeated": bool(is_repeated),
+                "repeat_group_id": repeat_group_id if is_repeated else pd.NA,
+                "created_at": created_at,
+            }
+        )
+    return rows
+
+
 def _normalize_events_df(df):
     """标准化固定安排表结构与字段类型。"""
     normalized = df.copy()
@@ -163,11 +514,15 @@ def _normalize_events_df(df):
     normalized = normalized[EVENT_COLUMNS]
 
     normalized["event_id"] = pd.to_numeric(normalized["event_id"], errors="coerce")
-    for col in ["event_name", "date", "start_time", "end_time", "event_type", "note"]:
+    for col in ["event_name", "date", "start_time", "end_time", "event_type", "note", "created_at"]:
         normalized[col] = normalized[col].fillna("").astype(str)
 
     normalized["event_type"] = normalized["event_type"].apply(
         lambda value: value if value in EVENT_TYPE_OPTIONS else "其他"
+    )
+    normalized["is_repeated"] = normalized["is_repeated"].apply(_to_bool)
+    normalized["repeat_group_id"] = pd.to_numeric(
+        normalized["repeat_group_id"], errors="coerce"
     )
 
     return normalized
@@ -227,7 +582,8 @@ def load_tasks():
     """
     ensure_data_files()
     df = pd.read_csv(USER_TASKS_PATH, encoding="utf-8-sig")
-    return _normalize_tasks_df(df)
+    normalized = _normalize_tasks_df(df)
+    return _refresh_days_left(normalized)
 
 
 def save_tasks(df):
@@ -471,7 +827,10 @@ def load_events():
     """
     ensure_data_files()
     df = pd.read_csv(FIXED_EVENTS_PATH, encoding="utf-8-sig")
-    return _normalize_events_df(df)
+    normalized = _normalize_events_df(df)
+    return normalized.sort_values(
+        by=["date", "start_time", "event_id"], kind="stable"
+    ).reset_index(drop=True)
 
 
 def save_events(df):
@@ -491,52 +850,153 @@ def add_event(event_data):
     新增固定安排。
 
     Args:
-        event_data (dict): 包含 event_name, event_type, date, start_time, end_time, note。
+        event_data (dict): 包含 event_name, event_type, date, start_time, end_time, note
+            及可选重复参数。
 
     Returns:
-        dict: 新增后的固定安排字典。
+        list[dict]: 新增后的固定安排字典列表。
     """
     events_df = load_events()
-    event_id = _next_id(events_df, "event_id")
+    new_rows = _build_new_event_rows(event_data, events_df)
 
-    event_type = str(event_data.get("event_type", "")).strip()
-    if event_type not in EVENT_TYPE_OPTIONS:
-        event_type = "其他"
-
-    new_event = {
-        "event_id": event_id,
-        "event_name": event_data.get("event_name", ""),
-        "event_type": event_type,
-        "date": str(event_data.get("date", "")),
-        "start_time": str(event_data.get("start_time", "")),
-        "end_time": str(event_data.get("end_time", "")),
-        "note": event_data.get("note", ""),
-    }
-
-    events_df = pd.concat([events_df, pd.DataFrame([new_event])], ignore_index=True)
+    events_df = pd.concat([events_df, pd.DataFrame(new_rows)], ignore_index=True)
     save_events(events_df)
-    return new_event
+    return new_rows
 
 
-def delete_event(event_id):
+def update_event(event_id, event_data, update_scope="single"):
+    """
+    更新固定安排。
+
+    Args:
+        event_id: 固定安排 ID。
+        event_data (dict): 更新后的字段。
+        update_scope (str): 更新范围，single 或 group。
+
+    Returns:
+        dict: 更新结果摘要。
+    """
+    events_df = load_events()
+    index = _find_row_index(events_df, "event_id", event_id)
+    if index is None:
+        raise ValueError(f"未找到 event_id={event_id} 的固定安排")
+
+    target_row = events_df.loc[index]
+    normalized_input = _normalize_event_input(event_data)
+    scope = str(update_scope or "single").strip().lower()
+    source_is_repeated = _to_bool(target_row.get("is_repeated", False))
+    target_is_repeated = _to_bool(event_data.get("is_repeated", source_is_repeated))
+
+    if (
+        scope == "group"
+        and source_is_repeated
+        and pd.notna(target_row.get("repeat_group_id"))
+    ):
+        target_group_id = int(float(target_row.get("repeat_group_id")))
+        group_mask = (
+            pd.to_numeric(events_df["repeat_group_id"], errors="coerce") == target_group_id
+        )
+        remaining_df = events_df[~group_mask].copy()
+
+        group_payload = dict(event_data)
+        group_payload["event_name"] = normalized_input["event_name"]
+        group_payload["event_type"] = normalized_input["event_type"]
+        group_payload["date"] = normalized_input["date"].isoformat()
+        group_payload["start_time"] = normalized_input["start_time"]
+        group_payload["end_time"] = normalized_input["end_time"]
+        group_payload["note"] = normalized_input["note"]
+        group_payload["is_repeated"] = target_is_repeated
+
+        regenerated_rows = _build_new_event_rows(
+            group_payload, remaining_df, force_repeated=target_is_repeated
+        )
+        updated_df = pd.concat([remaining_df, pd.DataFrame(regenerated_rows)], ignore_index=True)
+        save_events(updated_df)
+        return {
+            "mode": "group",
+            "updated_count": len(regenerated_rows),
+            "repeat_group_id": regenerated_rows[0]["repeat_group_id"] if regenerated_rows else None,
+        }
+
+    if not source_is_repeated and target_is_repeated:
+        remaining_df = events_df[events_df["event_id"].astype(str) != str(event_id)].copy()
+        promote_payload = dict(event_data)
+        promote_payload["event_name"] = normalized_input["event_name"]
+        promote_payload["event_type"] = normalized_input["event_type"]
+        promote_payload["date"] = normalized_input["date"].isoformat()
+        promote_payload["start_time"] = normalized_input["start_time"]
+        promote_payload["end_time"] = normalized_input["end_time"]
+        promote_payload["note"] = normalized_input["note"]
+        promote_payload["is_repeated"] = True
+
+        regenerated_rows = _build_new_event_rows(
+            promote_payload, remaining_df, force_repeated=True
+        )
+        updated_df = pd.concat([remaining_df, pd.DataFrame(regenerated_rows)], ignore_index=True)
+        save_events(updated_df)
+        return {
+            "mode": "single_to_group",
+            "updated_count": len(regenerated_rows),
+            "repeat_group_id": regenerated_rows[0]["repeat_group_id"] if regenerated_rows else None,
+        }
+
+    events_df.at[index, "event_name"] = normalized_input["event_name"]
+    events_df.at[index, "event_type"] = normalized_input["event_type"]
+    events_df.at[index, "date"] = normalized_input["date"].isoformat()
+    events_df.at[index, "start_time"] = normalized_input["start_time"]
+    events_df.at[index, "end_time"] = normalized_input["end_time"]
+    events_df.at[index, "note"] = normalized_input["note"]
+    if source_is_repeated and target_is_repeated:
+        events_df.at[index, "is_repeated"] = True
+    elif source_is_repeated and not target_is_repeated:
+        events_df.at[index, "is_repeated"] = False
+        events_df.at[index, "repeat_group_id"] = pd.NA
+    else:
+        events_df.at[index, "is_repeated"] = False
+        events_df.at[index, "repeat_group_id"] = pd.NA
+    save_events(events_df)
+    return {"mode": "single", "updated_count": 1}
+
+
+def delete_event(event_id, delete_scope="single"):
     """
     删除固定安排。
 
     Args:
         event_id: 固定安排 ID。
+        delete_scope (str): 删除范围，single 或 group。
 
     Returns:
-        bool: 是否删除成功。
+        int: 删除条数（0 表示未删除）。
     """
     events_df = load_events()
-    original_count = len(events_df)
-    events_df = events_df[events_df["event_id"].astype(str) != str(event_id)].copy()
+    index = _find_row_index(events_df, "event_id", event_id)
+    if index is None:
+        return 0
 
-    if len(events_df) == original_count:
-        return False
+    target_row = events_df.loc[index]
+    scope = str(delete_scope or "single").strip().lower()
+    if (
+        scope == "group"
+        and _to_bool(target_row.get("is_repeated", False))
+        and pd.notna(target_row.get("repeat_group_id"))
+    ):
+        target_group_id = int(float(target_row.get("repeat_group_id")))
+        group_mask = (
+            pd.to_numeric(events_df["repeat_group_id"], errors="coerce") == target_group_id
+        )
+        deleted_count = int(group_mask.sum())
+        if deleted_count <= 0:
+            return 0
+        remaining_df = events_df[~group_mask].copy()
+        save_events(remaining_df)
+        return deleted_count
 
-    save_events(events_df)
-    return True
+    remaining_df = events_df[events_df["event_id"].astype(str) != str(event_id)].copy()
+    deleted_count = len(events_df) - len(remaining_df)
+    if deleted_count > 0:
+        save_events(remaining_df)
+    return deleted_count
 
 
 def load_user_stats():
@@ -661,8 +1121,8 @@ if __name__ == "__main__":
         "end_time": "10:30",
         "note": "按时到教室",
     }
-    added_event = add_event(sample_event)
-    print(f"新增固定安排成功: {added_event}")
+    added_events = add_event(sample_event)
+    print(f"新增固定安排成功: {added_events}")
 
     completed_task = complete_task(added_task["task_id"], actual_hours=4.0)
     print(f"任务完成成功: {completed_task}")

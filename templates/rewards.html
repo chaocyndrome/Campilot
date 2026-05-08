@@ -1,5 +1,9 @@
 {% extends "base.html" %}
 
+{% block head_extra %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+{% endblock %}
+
 {% block content %}
 <section class="page-header card">
   <h2>奖励/成就</h2>
@@ -23,6 +27,19 @@
         <strong>{{ stats.completed_tasks }}</strong>
       </div>
     </div>
+
+    <section class="tag-radar-panel">
+      <h4>积分标签分布</h4>
+      {% if tag_points_radar.has_data %}
+      <div class="tag-radar-wrap">
+        <canvas id="tag-points-radar" aria-label="积分标签分布雷达图"></canvas>
+      </div>
+      <p class="tag-radar-note">{{ tag_points_radar.note_text }}</p>
+      <script id="tag-points-radar-data" type="application/json">{{ tag_points_radar | tojson }}</script>
+      {% else %}
+      <p class="tag-radar-empty">{{ tag_points_radar.empty_message }}</p>
+      {% endif %}
+    </section>
   </article>
 
   <article class="card">

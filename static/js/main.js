@@ -3,6 +3,7 @@ document.addEventListener("DOMContentLoaded", function () {
   initTaskModal();
   initEventAddRepeatForm();
   initEventEditModal();
+  initTagPointsRadar();
 });
 
 function initToasts() {
@@ -295,4 +296,157 @@ function toBool(value) {
   }
   const text = String(value || "").trim().toLowerCase();
   return text === "true" || text === "1" || text === "yes" || text === "y" || text === "是";
+}
+
+function initTagPointsRadar() {
+  const canvas = document.getElementById("tag-points-radar");
+  const payloadNode = document.getElementById("tag-points-radar-data");
+
+  if (!canvas || !payloadNode) {
+    return;
+  }
+  if (typeof Chart === "undefined") {
+    return;
+  }
+
+  let payload = null;
+  try {
+    payload = JSON.parse(payloadNode.textContent || "{}");
+  } catch (_err) {
+    return;
+  }
+
+  const labels = Array.isArray(payload.labels) ? payload.labels : [];
+  const scaledPoints = Array.isArray(payload.scaled_points) ? payload.scaled_points : [];
+  const rawPoints = Array.isArray(payload.raw_points) ? payload.raw_points : [];
+  const chartType = payload.chart_type === "bar" ? "bar" : "radar";
+
+  if (!labels.length) {
+    return;
+  }
+  if (chartType === "radar" && labels.length !== scaledPoints.length) {
+    return;
+  }
+  if (chartType === "bar" && labels.length !== rawPoints.length) {
+    return;
+  }
+
+  const tooltipRawPoints = rawPoints.length === labels.length ? rawPoints : scaledPoints.map(function () {
+    return 0;
+  });
+
+  try {
+    const commonTooltip = {
+      callbacks: {
+        label: function (context) {
+          const index = context.dataIndex;
+          const label = labels[index] || "未命名标签";
+          const points = tooltipRawPoints[index] || 0;
+          return [label, "累计获得积分：" + points];
+        }
+      }
+    };
+
+    if (chartType === "bar") {
+      new Chart(canvas, {
+        type: "bar",
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              data: rawPoints,
+              backgroundColor: "rgba(37, 99, 235, 0.35)",
+              borderColor: "rgba(37, 99, 235, 0.9)",
+              borderWidth: 1.5,
+              borderRadius: 6
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              ticks: {
+                color: "#334155"
+              },
+              grid: {
+                color: "rgba(148, 163, 184, 0.2)"
+              }
+            },
+            y: {
+              beginAtZero: true,
+              ticks: {
+                color: "#64748b"
+              },
+              grid: {
+                color: "rgba(148, 163, 184, 0.25)"
+              }
+            }
+          },
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: commonTooltip
+          }
+        }
+      });
+      return;
+    }
+
+    new Chart(canvas, {
+      type: "radar",
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            data: scaledPoints,
+            backgroundColor: "rgba(37, 99, 235, 0.18)",
+            borderColor: "rgba(37, 99, 235, 0.9)",
+            borderWidth: 2,
+            pointRadius: 3,
+            pointHoverRadius: 5,
+            pointBackgroundColor: "rgba(30, 64, 175, 1)"
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          r: {
+            min: 0,
+            max: 5,
+            ticks: {
+              stepSize: 1,
+              color: "#64748b",
+              showLabelBackdrop: false
+            },
+            grid: {
+              circular: true,
+              color: "rgba(148, 163, 184, 0.35)"
+            },
+            angleLines: {
+              color: "rgba(148, 163, 184, 0.45)"
+            },
+            pointLabels: {
+              color: "#334155",
+              font: {
+                size: 12
+              }
+            }
+          }
+        },
+        plugins: {
+          legend: {
+            display: false
+          },
+          tooltip: commonTooltip
+        }
+      }
+    });
+  } catch (_err) {
+    // 图表初始化失败时静默降级，不影响页面其他功能。
+  }
 }

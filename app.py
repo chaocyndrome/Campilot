@@ -93,6 +93,106 @@ def _parse_time(value):
     return None
 
 
+def _build_tag_points_radar(tasks, top_n=7, max_dimensions=8):
+    """构建奖励页标签积分图数据。"""
+    tag_points = {}
+    other_points = 0
+    completed_count = 0
+    positive_points_total = 0
+
+    for task in tasks:
+        if str(task.get("status", "")).strip() != "已完成":
+            continue
+
+        completed_count += 1
+        points = int(_safe_number(task.get("points", 0), 0))
+        if points <= 0:
+            continue
+
+        positive_points_total += points
+        tag = str(task.get("tag", "")).strip()
+        if not tag or tag == "其他":
+            other_points += points
+            continue
+
+        tag_points[tag] = tag_points.get(tag, 0) + points
+
+    if completed_count <= 0 or positive_points_total <= 0:
+        return {
+            "has_data": False,
+            "labels": [],
+            "raw_points": [],
+            "scaled_points": [],
+            "max_points": 0,
+            "chart_type": "radar",
+            "note_text": "该图展示不同任务标签带来的累计积分分布，兑换奖励不会减少这里的累计积分。",
+            "empty_message": "暂无积分分布数据，完成任务后将在这里显示。",
+        }
+
+    top_n = max(1, int(top_n))
+    max_dimensions = max(1, int(max_dimensions))
+    sorted_items = sorted(tag_points.items(), key=lambda item: (-item[1], item[0]))
+    effective_label_count = len(sorted_items) + (1 if other_points > 0 else 0)
+
+    labels = []
+    raw_points = []
+    if effective_label_count >= max_dimensions:
+        top_items = sorted_items[:top_n]
+        overflow_points = sum(points for _, points in sorted_items[top_n:])
+        merged_other_points = int(other_points + overflow_points)
+
+        labels.extend(name for name, _ in top_items)
+        raw_points.extend(int(points) for _, points in top_items)
+        if merged_other_points > 0:
+            labels.append("其他")
+            raw_points.append(merged_other_points)
+    else:
+        labels.extend(name for name, _ in sorted_items)
+        raw_points.extend(int(points) for _, points in sorted_items)
+        if other_points > 0:
+            labels.append("其他")
+            raw_points.append(int(other_points))
+
+    if not raw_points:
+        return {
+            "has_data": False,
+            "labels": [],
+            "raw_points": [],
+            "scaled_points": [],
+            "max_points": 0,
+            "chart_type": "radar",
+            "note_text": "该图展示不同任务标签带来的累计积分分布，兑换奖励不会减少这里的累计积分。",
+            "empty_message": "暂无积分分布数据，完成任务后将在这里显示。",
+        }
+
+    max_points = max(raw_points)
+    if max_points <= 0:
+        return {
+            "has_data": False,
+            "labels": [],
+            "raw_points": [],
+            "scaled_points": [],
+            "max_points": 0,
+            "chart_type": "radar",
+            "note_text": "该图展示不同任务标签带来的累计积分分布，兑换奖励不会减少这里的累计积分。",
+            "empty_message": "暂无积分分布数据，完成任务后将在这里显示。",
+        }
+
+    scaled_points = [round((point / max_points) * 5, 2) for point in raw_points]
+    chart_type = "bar" if len(labels) == 1 else "radar"
+
+    return {
+        "has_data": True,
+        "labels": labels,
+        "raw_points": raw_points,
+        "scaled_points": scaled_points,
+        "max_points": max_points,
+        "chart_type": chart_type,
+        "note_text": "该图展示不同任务标签带来的累计积分分布，兑换奖励不会减少这里的累计积分。",
+        "empty_message": "",
+    }
+
+
 def _event_hours(start_time, end_time):
     """计算单条固定安排时长（小时）。"""
     start = _parse_time(start_time)
@@ -519,6 +619,7 @@ def rewards():
 
     tasks = context["tasks"]
     stats = context["stats"]
+    tag_points_radar = _build_tag_points_radar(tasks, top_n=7, max_dimensions=8)
     today_date = date.today()
     ddl_window_end = today_date + timedelta(days=6)
 
@@ -646,6 +747,7 @@ def rewards():
             "priority_counts": priority_counts,
             "tag_counts": sorted_tag_counts,
             "future_ddl_count": future_ddl_count,
+            "tag_points_radar": tag_points_radar,
         }
     )
     return render_template("rewards.html", **context)

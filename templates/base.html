@@ -9,7 +9,9 @@
 <body>
   <header class="topbar">
     <div class="container topbar-inner">
-      <h1 class="brand">Campilot</h1>
+      <h1 class="brand">
+        <img src="{{ url_for('static', filename='img/campilot-logo.png') }}" alt="Campilot">
+      </h1>
       <nav class="nav">
         <a href="{{ url_for('today') }}" class="{% if active_page == 'today' %}active{% endif %}">今日任务</a>
         <a href="{{ url_for('timeline') }}" class="{% if active_page == 'timeline' %}active{% endif %}">本周时间线</a>

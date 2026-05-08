@@ -552,13 +552,83 @@ def rewards():
         if today_date <= deadline <= ddl_window_end:
             future_ddl_count += 1
 
-    achievements = [
-        {"name": "初次完成", "unlocked": completed_tasks_count >= 1},
-        {"name": "稳定推进", "unlocked": completed_tasks_count >= 5},
-        {"name": "任务达人", "unlocked": completed_tasks_count >= 10},
-        {"name": "积分充足", "unlocked": int(stats.get("total_points", 0)) >= 500},
-        {"name": "高优先级处理者", "unlocked": completed_high_priority_count >= 3},
+    total_points = int(_safe_number(stats.get("total_points", 0), 0))
+    achievement_definitions = [
+        {
+            "id": "first_completion",
+            "name": "初次完成",
+            "description": "完成第一个任务，开启你的成就之旅。",
+            "condition_text": "完成 1 个任务",
+            "metric": "completed_tasks",
+            "target": 1,
+        },
+        {
+            "id": "steady_progress",
+            "name": "稳定推进",
+            "description": "保持连续推进，节奏开始稳定。",
+            "condition_text": "完成 5 个任务",
+            "metric": "completed_tasks",
+            "target": 5,
+        },
+        {
+            "id": "rhythm_mastery",
+            "name": "节奏掌控",
+            "description": "持续完成任务，形成自己的学习和工作节奏。",
+            "condition_text": "完成 10 个任务",
+            "metric": "completed_tasks",
+            "target": 10,
+        },
+        {
+            "id": "points_getting_started",
+            "name": "积分起步",
+            "description": "累计积分过百，说明你的努力已经可见。",
+            "condition_text": "累计获得 100 积分",
+            "metric": "total_points",
+            "target": 100,
+        },
+        {
+            "id": "full_energy",
+            "name": "能量充足",
+            "description": "累计积分达到新高度，可以兑换更多奖励。",
+            "condition_text": "累计获得 500 积分",
+            "metric": "total_points",
+            "target": 500,
+        },
+        {
+            "id": "high_priority_solver",
+            "name": "高优先级处理者",
+            "description": "优先处理关键任务，体现了清晰的执行力。",
+            "condition_text": "完成 3 个高优先级任务",
+            "metric": "completed_high_priority_tasks",
+            "target": 3,
+        },
     ]
+    metric_values = {
+        "completed_tasks": completed_tasks_count,
+        "total_points": total_points,
+        "completed_high_priority_tasks": completed_high_priority_count,
+    }
+    achievements = []
+    for definition in achievement_definitions:
+        target = int(definition["target"])
+        progress = int(metric_values.get(definition["metric"], 0))
+        unlocked = progress >= target
+        progress_percent = 0
+        if target > 0:
+            progress_percent = min(100, round(min(progress, target) / target * 100))
+
+        achievements.append(
+            {
+                "id": definition["id"],
+                "name": definition["name"],
+                "description": definition["description"],
+                "condition_text": definition["condition_text"],
+                "target": target,
+                "progress": progress,
+                "progress_percent": progress_percent,
+                "unlocked": unlocked,
+            }
+        )
 
     records_sorted = sorted(
         context["records"],

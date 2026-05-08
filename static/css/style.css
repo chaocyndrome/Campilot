@@ -558,9 +558,6 @@ body {
 .badge-item {
   border-radius: 12px;
   padding: 10px 12px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   border: 1px solid var(--border);
 }
 
@@ -572,6 +569,77 @@ body {
 .badge-item.locked {
   background: #f8fafc;
   border-color: #e2e8f0;
+  opacity: 0.82;
+}
+
+.badge-item summary {
+  list-style: none;
+}
+
+.badge-item summary::-webkit-details-marker {
+  display: none;
+}
+
+.badge-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.badge-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.badge-name {
+  font-weight: 700;
+}
+
+.badge-hint {
+  color: #64748b;
+}
+
+.badge-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  text-align: right;
+}
+
+.badge-detail {
+  margin-top: 10px;
+  border-top: 1px dashed var(--border);
+  padding-top: 10px;
+}
+
+.badge-detail p {
+  margin: 0 0 6px;
+}
+
+.badge-detail p span {
+  color: #475569;
+}
+
+.badge-progress-track {
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.badge-progress-fill {
+  height: 100%;
+  background: #16a34a;
+  border-radius: 999px;
+}
+
+.badge-item.locked .badge-progress-fill {
+  background: #94a3b8;
 }
 
 .modal-backdrop {

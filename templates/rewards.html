@@ -77,10 +77,28 @@
     <h3>成就徽章</h3>
     <div class="badge-list">
       {% for badge in achievements %}
-      <div class="badge-item {% if badge.unlocked %}unlocked{% else %}locked{% endif %}">
-        <span>{{ badge.name }}</span>
-        <strong>{% if badge.unlocked %}已解锁{% else %}未解锁{% endif %}</strong>
-      </div>
+      <details class="badge-item {% if badge.unlocked %}unlocked{% else %}locked{% endif %}">
+        <summary class="badge-summary">
+          <div class="badge-main">
+            <span class="badge-name">{{ badge.name }}</span>
+            <small class="badge-hint">点击查看详情</small>
+          </div>
+          <div class="badge-meta">
+            <strong>{% if badge.unlocked %}已解锁{% else %}未解锁{% endif %}</strong>
+            <small>进度：{{ badge.progress }}/{{ badge.target }}</small>
+          </div>
+        </summary>
+        <div class="badge-detail">
+          <p><span>成就名称：</span>{{ badge.name }}</p>
+          <p><span>当前状态：</span>{% if badge.unlocked %}已解锁{% else %}未解锁{% endif %}</p>
+          <p><span>解锁条件：</span>{{ badge.condition_text }}</p>
+          <p><span>当前进度：</span>{{ badge.progress }}/{{ badge.target }}</p>
+          <p><span>说明：</span>{{ badge.description }}</p>
+          <div class="badge-progress-track" role="presentation">
+            <div class="badge-progress-fill" style="width: {{ badge.progress_percent }}%;"></div>
+          </div>
+        </div>
+      </details>
       {% else %}
       <p>暂无成就配置</p>
       {% endfor %}

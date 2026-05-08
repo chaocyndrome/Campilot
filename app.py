@@ -153,13 +153,6 @@ def today():
 
     focus_tasks = [task for task in unfinished_tasks if task.get("status") == "今日关注"]
 
-    recent_ddl = [
-        task
-        for task in unfinished_tasks
-        if 0 <= _safe_days_left(task.get("days_left"), default=-1) <= 7
-    ]
-    recent_ddl = sorted(recent_ddl, key=lambda task: _safe_days_left(task.get("days_left")))
-
     unfinished_tasks_sorted = sorted(
         unfinished_tasks,
         key=lambda task: (
@@ -174,7 +167,6 @@ def today():
             "unfinished_tasks": unfinished_tasks_sorted,
             "recommended_tasks": recommended_tasks,
             "focus_tasks": focus_tasks,
-            "recent_ddl": recent_ddl,
         }
     )
     return render_template("today.html", **context)

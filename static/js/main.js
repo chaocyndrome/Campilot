@@ -119,7 +119,6 @@ function initEventAddRepeatForm() {
   const isRepeatedSelect = document.getElementById("event-is-repeated");
   const repeatSettings = document.getElementById("event-repeat-settings");
   const repeatFrequency = document.getElementById("event-repeat-frequency");
-  const repeatWeekdaysWrap = document.getElementById("event-repeat-weekdays-wrap");
   const repeatCountWrap = document.getElementById("event-repeat-count-wrap");
   const repeatUntilWrap = document.getElementById("event-repeat-until-wrap");
   const repeatCountInput = document.getElementById("event-repeat-count");
@@ -134,9 +133,6 @@ function initEventAddRepeatForm() {
       repeatUntilInput.required = false;
       return;
     }
-
-    const frequency = repeatFrequency.value || "weekly";
-    repeatWeekdaysWrap.hidden = frequency !== "weekly";
 
     const selectedEndType = form.querySelector('input[name="repeat_end_type"]:checked');
     const endType = selectedEndType ? selectedEndType.value : "count";
@@ -178,7 +174,6 @@ function initEventEditModal() {
   const updateScopeWrap = document.getElementById("event-update-scope-wrap");
   const repeatSettings = document.getElementById("event-edit-repeat-settings");
   const repeatFrequency = document.getElementById("edit-event-repeat-frequency");
-  const repeatWeekdaysWrap = document.getElementById("edit-event-repeat-weekdays-wrap");
   const repeatCountWrap = document.getElementById("edit-event-repeat-count-wrap");
   const repeatUntilWrap = document.getElementById("edit-event-repeat-until-wrap");
   const repeatCountInput = document.getElementById("edit-event-repeat-count");
@@ -193,27 +188,6 @@ function initEventEditModal() {
   function closeModal() {
     modal.hidden = true;
     document.body.style.overflow = "";
-  }
-
-  function setDefaultRepeatWeekday(dateText) {
-    const boxes = form.querySelectorAll('input[name="repeat_weekdays"]');
-    boxes.forEach(function (box) {
-      box.checked = false;
-    });
-
-    if (!dateText) {
-      return;
-    }
-
-    const day = parseWeekdayFromDate(dateText);
-    if (day === null) {
-      return;
-    }
-
-    const matched = form.querySelector('input[name="repeat_weekdays"][value="' + day + '"]');
-    if (matched) {
-      matched.checked = true;
-    }
   }
 
   function toggleEventEditRepeatSettings() {
@@ -231,9 +205,6 @@ function initEventEditModal() {
       repeatUntilInput.required = false;
       return;
     }
-
-    const frequency = repeatFrequency.value || "weekly";
-    repeatWeekdaysWrap.hidden = frequency !== "weekly";
 
     const selectedEndType = form.querySelector('input[name="repeat_end_type"]:checked');
     const endType = selectedEndType ? selectedEndType.value : "count";
@@ -276,7 +247,6 @@ function initEventEditModal() {
       setValue(repeatFrequency, "weekly");
       setValue(repeatCountInput, "1");
       setValue(repeatUntilInput, "");
-      setDefaultRepeatWeekday(event.date);
       setEditScope("single");
 
       sourceIsRepeated = toBool(event.is_repeated);
@@ -325,13 +295,4 @@ function toBool(value) {
   }
   const text = String(value || "").trim().toLowerCase();
   return text === "true" || text === "1" || text === "yes" || text === "y" || text === "是";
-}
-
-function parseWeekdayFromDate(dateText) {
-  const dateObj = new Date(dateText + "T00:00:00");
-  if (Number.isNaN(dateObj.getTime())) {
-    return null;
-  }
-  const weekday = dateObj.getDay();
-  return (weekday + 6) % 7;
 }

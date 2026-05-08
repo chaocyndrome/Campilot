@@ -324,7 +324,8 @@ def _parse_repeat_config(event_data, start_date):
     if repeat_frequency == "weekly":
         repeat_weekdays = _normalize_repeat_weekdays(event_data.get("repeat_weekdays"))
         if not repeat_weekdays:
-            raise ValueError("每周重复时，必须至少选择一个星期")
+            # 未显式提供星期时，默认使用开始日期对应的星期。
+            repeat_weekdays = [start_date.weekday()]
 
     repeat_count = None
     repeat_until = None

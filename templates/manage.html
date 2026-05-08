@@ -120,17 +120,6 @@
             重复间隔
             <input type="number" name="repeat_interval" id="event-repeat-interval" min="1" step="1" value="1">
           </label>
-          <fieldset class="full-width repeat-weekdays-wrap" id="event-repeat-weekdays-wrap">
-            <legend>每周重复（可多选）</legend>
-            <div class="weekday-options">
-              {% for weekday in weekday_options %}
-              <label class="weekday-option">
-                <input type="checkbox" name="repeat_weekdays" value="{{ weekday.value }}">
-                <span>{{ weekday.label }}</span>
-              </label>
-              {% endfor %}
-            </div>
-          </fieldset>
           <fieldset class="full-width repeat-end-wrap">
             <legend>结束方式</legend>
             <div class="repeat-end-options">
@@ -451,17 +440,6 @@
             重复间隔
             <input type="number" name="repeat_interval" id="edit-event-repeat-interval" min="1" step="1" value="1">
           </label>
-          <fieldset class="full-width repeat-weekdays-wrap" id="edit-event-repeat-weekdays-wrap">
-            <legend>每周重复（可多选）</legend>
-            <div class="weekday-options">
-              {% for weekday in weekday_options %}
-              <label class="weekday-option">
-                <input type="checkbox" name="repeat_weekdays" value="{{ weekday.value }}">
-                <span>{{ weekday.label }}</span>
-              </label>
-              {% endfor %}
-            </div>
-          </fieldset>
           <fieldset class="full-width repeat-end-wrap">
             <legend>结束方式</legend>
             <div class="repeat-end-options">

@@ -61,39 +61,7 @@
 </section>
 
 <section class="card table-card">
-  <h3>最近 DDL</h3>
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>任务名称</th>
-          <th>DDL</th>
-          <th>剩余天数</th>
-          <th>优先级</th>
-          <th>状态</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for task in recent_ddl %}
-        <tr>
-          <td>{{ task.task_name }}</td>
-          <td>{{ task.deadline }}</td>
-          <td>{{ task.days_left }}</td>
-          <td>{{ task.priority }}</td>
-          <td>{{ task.status }}</td>
-        </tr>
-        {% else %}
-        <tr>
-          <td colspan="5">暂无最近 DDL 任务</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</section>
-
-<section class="card table-card">
-  <h3>所有未完成任务</h3>
+  <h3>最近DDL</h3>
   <div class="table-wrap">
     <table>
       <thead>

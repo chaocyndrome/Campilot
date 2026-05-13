@@ -74,6 +74,19 @@ def _task_sort_key_for_manage(task):
     )
 
 
+def _task_sort_key_for_focus(task):
+    """今日关注任务排序：优先级 > 优先级权重数字(重要程度) > DDL。"""
+    deadline_date = _parse_date(task.get("deadline"))
+    deadline_rank = deadline_date or date.max
+    due_today_rank = 0 if _safe_days_left(task.get("days_left")) == 0 else 1
+    return (
+        due_today_rank,
+        _priority_rank(task.get("priority")),
+        -_safe_number(task.get("importance")),
+        deadline_rank,
+    )
+
+
 def _parse_date(value):
     """解析 YYYY-MM-DD 字符串为 date。"""
     try:
@@ -251,7 +264,10 @@ def today():
         ),
     )[:5]
 
-    focus_tasks = [task for task in unfinished_tasks if task.get("status") == "今日关注"]
+    focus_tasks = sorted(
+        [task for task in unfinished_tasks if task.get("status") == "今日关注"],
+        key=_task_sort_key_for_focus,
+    )
 
     unfinished_tasks_sorted = sorted(
         unfinished_tasks,

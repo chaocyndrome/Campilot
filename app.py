@@ -5,6 +5,13 @@ from datetime import date, datetime, timedelta
 from flask import Flask, flash, redirect, render_template, request, url_for
 
 import storage
+from priority import (
+    PRIORITY_LABELS,
+    is_high_impact_priority,
+    normalize_priority,
+    priority_attention_window,
+    priority_rank,
+)
 
 
 app = Flask(__name__)
@@ -58,9 +65,8 @@ def _to_bool(value):
 
 
 def _priority_rank(priority):
-    """优先级排序映射：高 > 中 > 低。"""
-    rank_map = {"高": 0, "中": 1, "低": 2}
-    return rank_map.get(str(priority), 3)
+    """优先级排序映射：特急 > 高 > 较高 > 中 > 低。"""
+    return priority_rank(priority)
 
 
 def _task_sort_key_for_manage(task):
@@ -337,15 +343,9 @@ def timeline():
                 ddl_tasks.append(task)
 
             days_to_deadline = (deadline_date - current_day).days
-            priority = str(task.get("priority", ""))
-
-            should_recommend = False
-            if priority == "高" and days_to_deadline <= 3:
-                should_recommend = True
-            elif priority == "中" and days_to_deadline <= 2:
-                should_recommend = True
-            elif priority == "低" and deadline_date == current_day:
-                should_recommend = True
+            priority = normalize_priority(task.get("priority", ""))
+            attention_window = priority_attention_window(priority)
+            should_recommend = days_to_deadline <= attention_window
 
             if should_recommend:
                 task_for_display = dict(task)
@@ -644,12 +644,13 @@ def rewards():
     completed_high_priority_count = sum(
         1
         for task in tasks
-        if task.get("status") == "已完成" and str(task.get("priority", "")) == "高"
+        if task.get("status") == "已完成"
+        and is_high_impact_priority(task.get("priority", ""))
     )
 
-    priority_counts = {"高": 0, "中": 0, "低": 0}
+    priority_counts = {label: 0 for label in PRIORITY_LABELS}
     for task in tasks:
-        priority = str(task.get("priority", ""))
+        priority = normalize_priority(task.get("priority", ""))
         if priority in priority_counts:
             priority_counts[priority] += 1
 
@@ -761,6 +762,7 @@ def rewards():
             "stats_completed_tasks": completed_tasks_count,
             "stats_unfinished_tasks": unfinished_tasks_count,
             "priority_counts": priority_counts,
+            "priority_labels": PRIORITY_LABELS,
             "tag_counts": sorted_tag_counts,
             "future_ddl_count": future_ddl_count,
             "tag_points_radar": tag_points_radar,

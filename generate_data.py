@@ -3,25 +3,19 @@ import random
 
 import pandas as pd
 
+from priority import grade_priority
 
-def _get_priority(days_left, estimated_hours, difficulty, importance):
-    is_high = (
-        (days_left <= 1)
-        or (days_left <= 3 and estimated_hours >= 3)
-        or (days_left <= 5 and difficulty >= 4)
-        or (importance >= 5 and days_left <= 5)
+
+def _get_priority(days_left, estimated_hours, difficulty, importance, task_type="事务"):
+    return grade_priority(
+        {
+            "days_left": days_left,
+            "estimated_hours": estimated_hours,
+            "difficulty": difficulty,
+            "importance": importance,
+            "task_type": task_type,
+        }
     )
-
-    is_low = (
-        (days_left >= 7 and difficulty <= 2 and estimated_hours <= 1.5)
-        or (importance <= 2 and days_left >= 5)
-    )
-
-    if is_high:
-        return "高"
-    if is_low:
-        return "低"
-    return "中"
 
 
 def create_sample_dataset(
@@ -29,7 +23,7 @@ def create_sample_dataset(
 ):
     random.seed(random_state)
 
-    task_types = ["作业", "实验", "预习", "复习", "报告", "项目", "事务"]
+    task_types = ["作业", "实验", "预习", "复习", "报告", "项目", "事务", "阅读"]
     records = []
 
     for _ in range(n_samples):
@@ -39,7 +33,15 @@ def create_sample_dataset(
         importance = random.randint(1, 5)
         task_type = random.choice(task_types)
 
-        priority = _get_priority(days_left, estimated_hours, difficulty, importance)
+        priority = grade_priority(
+            {
+                "days_left": days_left,
+                "estimated_hours": estimated_hours,
+                "difficulty": difficulty,
+                "importance": importance,
+                "task_type": task_type,
+            }
+        )
 
         records.append(
             {

@@ -29,7 +29,7 @@ def run_manual_tests():
         },
         {
             "name": "快截止且耗时长的重要报告",
-            "expected": "高",
+            "expected": "特急",
             "data": {
                 "days_left": 2,
                 "estimated_hours": 5,
@@ -51,7 +51,7 @@ def run_manual_tests():
         },
         {
             "name": "重要但不算紧急的项目任务",
-            "expected": "中",
+            "expected": "较高",
             "data": {
                 "days_left": 6,
                 "estimated_hours": 4,

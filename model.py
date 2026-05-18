@@ -9,19 +9,25 @@ os.environ.setdefault("MPLCONFIGDIR", str(Path("data/.matplotlib").resolve()))
 import matplotlib.pyplot as plt
 import pandas as pd
 from sklearn.compose import ColumnTransformer
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from sklearn.model_selection import train_test_split
-from sklearn.neighbors import KNeighborsClassifier
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 
 from generate_data import create_sample_dataset
+from priority import (
+    PRIORITY_LABELS,
+    calculate_priority_score,
+    grade_priority,
+    priority_advice,
+)
 
 
 RANDOM_STATE = 42
 TARGET_COL = "priority"
 FEATURE_COLS = ["days_left", "estimated_hours", "difficulty", "importance", "task_type"]
-LABEL_ORDER = ["高", "中", "低"]
+LABEL_ORDER = PRIORITY_LABELS
 
 
 def load_dataset(csv_path="data/task_priority_dataset.csv"):
@@ -35,13 +41,25 @@ def load_dataset(csv_path="data/task_priority_dataset.csv"):
         pandas.DataFrame: 任务优先级数据。
     """
     dataset_path = Path(csv_path)
-    if not dataset_path.exists():
-        create_sample_dataset(csv_path=csv_path, n_samples=300, random_state=RANDOM_STATE)
-    return pd.read_csv(dataset_path)
+    should_regenerate = not dataset_path.exists()
+    df = None
+    if not should_regenerate:
+        df = pd.read_csv(dataset_path)
+        required_cols = set(FEATURE_COLS + [TARGET_COL])
+        labels = set(df[TARGET_COL].dropna().astype(str)) if TARGET_COL in df else set()
+        should_regenerate = (
+            not required_cols.issubset(df.columns)
+            or not labels.issubset(set(LABEL_ORDER))
+            or not set(LABEL_ORDER).issubset(labels)
+        )
+
+    if should_regenerate:
+        df = create_sample_dataset(csv_path=csv_path, n_samples=800, random_state=RANDOM_STATE)
+    return df
 
 
 def _build_pipeline():
-    """构建预处理 + KNN 分类器流水线。"""
+    """构建预处理 + 随机森林分类器流水线。"""
     categorical_features = ["task_type"]
     numeric_features = ["days_left", "estimated_hours", "difficulty", "importance"]
 
@@ -55,7 +73,15 @@ def _build_pipeline():
     model = Pipeline(
         steps=[
             ("preprocessor", preprocessor),
-            ("classifier", KNeighborsClassifier(n_neighbors=5)),
+            (
+                "classifier",
+                RandomForestClassifier(
+                    n_estimators=160,
+                    max_depth=8,
+                    class_weight="balanced",
+                    random_state=RANDOM_STATE,
+                ),
+            ),
         ]
     )
     return model
@@ -110,22 +136,27 @@ def generate_reason(task_info, priority):
 
     Args:
         task_info (dict): 任务信息。
-        priority (str): 预测优先级（高/中/低）。
+        priority (str): 预测优先级（特急/高/较高/中/低）。
 
     Returns:
         str: 推荐理由文本。
     """
     reasons = []
 
-    days_left = task_info.get("days_left", 999)
-    estimated_hours = task_info.get("estimated_hours", 0)
-    difficulty = task_info.get("difficulty", 0)
-    importance = task_info.get("importance", 0)
+    days_left = int(float(task_info.get("days_left", 999)))
+    estimated_hours = float(task_info.get("estimated_hours", 0))
+    difficulty = int(float(task_info.get("difficulty", 0)))
+    importance = int(float(task_info.get("importance", 0)))
+    score = calculate_priority_score(task_info)
 
-    if days_left <= 1:
+    if days_left < 0:
+        reasons.append("任务已超过截止日期")
+    elif days_left <= 1:
         reasons.append("截止时间非常接近")
     elif days_left <= 3:
         reasons.append("截止时间较近")
+    elif days_left <= 7:
+        reasons.append("本周内需要完成")
     if estimated_hours >= 3:
         reasons.append("预计耗时较长")
     if difficulty >= 4:
@@ -136,14 +167,9 @@ def generate_reason(task_info, priority):
     if not reasons:
         reasons.append("任务整体压力相对可控")
 
-    if priority == "高":
-        advice = "建议优先处理。"
-    elif priority == "中":
-        advice = "建议近期关注。"
-    else:
-        advice = "暂时不需要优先处理。"
+    advice = priority_advice(priority)
 
-    return "；".join(reasons) + "。" + advice
+    return f"综合压力评分 {score}，判定为{priority}。" + "；".join(reasons) + "。" + advice
 
 
 def predict_priority(task_info, model=None):
@@ -152,21 +178,23 @@ def predict_priority(task_info, model=None):
 
     Args:
         task_info (dict): 单条任务信息。
-        model: 已训练模型；若为 None 则自动训练。
+        model: 可选的已训练模型；运行时最终以确定性规则分级校准。
 
     Returns:
         dict: 包含 priority、reason、input_features 的结果。
     """
-    if model is None:
-        model, _ = train_priority_model()
-
-    input_df = pd.DataFrame([task_info], columns=FEATURE_COLS)
-    predicted_priority = str(model.predict(input_df)[0])
+    predicted_priority = grade_priority(task_info)
+    if model is not None:
+        input_df = pd.DataFrame([task_info], columns=FEATURE_COLS)
+        model_priority = str(model.predict(input_df)[0])
+        if model_priority == predicted_priority:
+            predicted_priority = model_priority
     reason = generate_reason(task_info, predicted_priority)
 
     return {
         "priority": predicted_priority,
         "reason": reason,
+        "priority_score": calculate_priority_score(task_info),
         "input_features": task_info,
     }
 

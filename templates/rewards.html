@@ -134,9 +134,9 @@
     <div>
       <h4>不同优先级任务数</h4>
       <ul>
-        <li>高：{{ priority_counts["高"] }}</li>
-        <li>中：{{ priority_counts["中"] }}</li>
-        <li>低：{{ priority_counts["低"] }}</li>
+        {% for priority in priority_labels %}
+        <li>{{ priority }}：{{ priority_counts[priority] }}</li>
+        {% endfor %}
       </ul>
       <h4>各标签任务数</h4>
       <ul>

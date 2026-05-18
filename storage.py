@@ -7,7 +7,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from model import predict_priority, train_priority_model
+from model import predict_priority
+from priority import normalize_priority, priority_bonus
 
 
 DATA_DIR = Path("data")
@@ -61,14 +62,10 @@ DEFAULT_REWARDS = [
 ]
 
 DEFAULT_USER_STATS = {"current_points": 0, "total_points": 0, "completed_tasks": 0}
-PRIORITY_BONUS = {"高": 20, "中": 10, "低": 5}
 EVENT_TYPE_OPTIONS = {"课程", "会议", "社交", "生活", "其他"}
 REPEAT_FREQUENCY_OPTIONS = {"daily", "weekly", "monthly"}
 REPEAT_END_TYPE_OPTIONS = {"count", "until"}
 MAX_REPEAT_EVENT_COUNT = 60
-
-_CACHED_MODEL = None
-
 
 def _now_str():
     """返回当前时间字符串。"""
@@ -108,14 +105,6 @@ def _row_to_dict(row):
     return result
 
 
-def _get_prediction_model():
-    """懒加载并缓存优先级模型，避免每次新增任务都重复训练。"""
-    global _CACHED_MODEL
-    if _CACHED_MODEL is None:
-        _CACHED_MODEL, _ = train_priority_model()
-    return _CACHED_MODEL
-
-
 def _save_redemption_records(df):
     """保存兑换记录。"""
     save_df = df.copy()
@@ -149,6 +138,7 @@ def _normalize_tasks_df(df):
     ]
     for col in text_cols:
         normalized[col] = normalized[col].fillna("").astype(str)
+    normalized["priority"] = normalized["priority"].apply(normalize_priority)
 
     normalized["task_id"] = pd.to_numeric(normalized["task_id"], errors="coerce")
     normalized["days_left"] = pd.to_numeric(normalized["days_left"], errors="coerce")
@@ -203,9 +193,8 @@ def _refresh_active_task_priorities(df):
         return refreshed, False
 
     changed = False
-    model = _get_prediction_model()
     for index, row in active_rows.iterrows():
-        prediction = predict_priority(_task_model_input_from_row(row), model=model)
+        prediction = predict_priority(_task_model_input_from_row(row))
         priority = prediction["priority"]
         reason = prediction["reason"]
 
@@ -689,7 +678,7 @@ def add_task(task_data):
         }
     )
 
-    prediction = predict_priority(task_info_for_model, model=_get_prediction_model())
+    prediction = predict_priority(task_info_for_model)
     created_at = _now_str()
 
     new_task = {
@@ -786,7 +775,7 @@ def update_task(task_id, updated_data, recalculate_priority=True):
 
     if recalculate_priority:
         task_info_for_model = _task_model_input_from_row(tasks_df.loc[index])
-        prediction = predict_priority(task_info_for_model, model=_get_prediction_model())
+        prediction = predict_priority(task_info_for_model)
         tasks_df.at[index, "priority"] = prediction["priority"]
         tasks_df.at[index, "reason"] = prediction["reason"]
 
@@ -803,8 +792,8 @@ def calculate_task_points(task_row):
     difficulty = int(float(task_row["difficulty"]))
     importance = int(float(task_row["importance"]))
     priority = str(task_row["priority"])
-    priority_bonus = PRIORITY_BONUS.get(priority, 5)
-    return difficulty * 10 + importance * 5 + priority_bonus
+    bonus = priority_bonus(priority)
+    return difficulty * 10 + importance * 5 + bonus
 
 
 def complete_task(task_id, actual_hours=None):

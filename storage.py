@@ -170,6 +170,55 @@ def _refresh_days_left(df):
     return refreshed
 
 
+def _safe_float(value, default=0.0):
+    """将数值安全转为 float。"""
+    try:
+        if pd.isna(value):
+            return default
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _task_model_input_from_row(row):
+    """从任务行构建模型输入，供新增、编辑和实时刷新共用字段语义。"""
+    task_type = str(row.get("task_type", "事务")).strip() or "事务"
+    return {
+        "days_left": int(_safe_float(row.get("days_left"), 9999)),
+        "estimated_hours": float(_safe_float(row.get("estimated_hours"), 0)),
+        "difficulty": int(_safe_float(row.get("difficulty"), 1)),
+        "importance": int(_safe_float(row.get("importance"), 1)),
+        "task_type": task_type,
+    }
+
+
+def _refresh_active_task_priorities(df):
+    """按当前任务信息刷新未完成任务的优先级与推荐理由。"""
+    refreshed = df.copy()
+    if refreshed.empty:
+        return refreshed, False
+
+    active_rows = refreshed[refreshed["status"].astype(str) != "已完成"]
+    if active_rows.empty:
+        return refreshed, False
+
+    changed = False
+    model = _get_prediction_model()
+    for index, row in active_rows.iterrows():
+        prediction = predict_priority(_task_model_input_from_row(row), model=model)
+        priority = prediction["priority"]
+        reason = prediction["reason"]
+
+        if str(refreshed.at[index, "priority"]) != priority:
+            refreshed.at[index, "priority"] = priority
+            changed = True
+        if str(refreshed.at[index, "reason"]) != reason:
+            refreshed.at[index, "reason"] = reason
+            changed = True
+
+    return refreshed, changed
+
+
 def _to_bool(value):
     """将常见输入安全转为布尔值。"""
     if isinstance(value, bool):
@@ -584,7 +633,12 @@ def load_tasks():
     ensure_data_files()
     df = pd.read_csv(USER_TASKS_PATH, encoding="utf-8-sig")
     normalized = _normalize_tasks_df(df)
-    return _refresh_days_left(normalized)
+    refreshed = _refresh_days_left(normalized)
+    days_changed = not refreshed["days_left"].equals(normalized["days_left"])
+    refreshed, priorities_changed = _refresh_active_task_priorities(refreshed)
+    if days_changed or priorities_changed:
+        save_tasks(refreshed)
+    return refreshed
 
 
 def save_tasks(df):
@@ -625,13 +679,15 @@ def add_task(task_data):
     importance = int(task_data.get("importance", 1))
     task_type = str(task_data.get("task_type", "事务"))
 
-    task_info_for_model = {
-        "days_left": days_left,
-        "estimated_hours": estimated_hours,
-        "difficulty": difficulty,
-        "importance": importance,
-        "task_type": task_type,
-    }
+    task_info_for_model = _task_model_input_from_row(
+        {
+            "days_left": days_left,
+            "estimated_hours": estimated_hours,
+            "difficulty": difficulty,
+            "importance": importance,
+            "task_type": task_type,
+        }
+    )
 
     prediction = predict_priority(task_info_for_model, model=_get_prediction_model())
     created_at = _now_str()
@@ -729,13 +785,7 @@ def update_task(task_id, updated_data, recalculate_priority=True):
     tasks_df.at[index, "days_left"] = (deadline_date - date.today()).days
 
     if recalculate_priority:
-        task_info_for_model = {
-            "days_left": int(tasks_df.at[index, "days_left"]),
-            "estimated_hours": float(tasks_df.at[index, "estimated_hours"]),
-            "difficulty": int(float(tasks_df.at[index, "difficulty"])),
-            "importance": int(float(tasks_df.at[index, "importance"])),
-            "task_type": str(tasks_df.at[index, "task_type"]),
-        }
+        task_info_for_model = _task_model_input_from_row(tasks_df.loc[index])
         prediction = predict_priority(task_info_for_model, model=_get_prediction_model())
         tasks_df.at[index, "priority"] = prediction["priority"]
         tasks_df.at[index, "reason"] = prediction["reason"]

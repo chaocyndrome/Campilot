@@ -14,6 +14,7 @@ from priority import normalize_priority, priority_bonus
 DATA_DIR = Path("data")
 USER_TASKS_PATH = DATA_DIR / "user_tasks.csv"
 FIXED_EVENTS_PATH = DATA_DIR / "fixed_events.csv"
+WEEKLY_FOCUS_PATH = DATA_DIR / "weekly_focus.csv"
 REWARDS_PATH = DATA_DIR / "rewards.csv"
 REDEMPTION_PATH = DATA_DIR / "redemption_records.csv"
 USER_STATS_PATH = DATA_DIR / "user_stats.json"
@@ -51,6 +52,18 @@ EVENT_COLUMNS = [
     "created_at",
 ]
 
+WEEKLY_FOCUS_COLUMNS = [
+    "focus_id",
+    "focus_text",
+    "start_date",
+    "duration_days",
+    "end_date",
+    "status",
+    "created_at",
+    "completed_at",
+    "points",
+]
+
 REWARD_COLUMNS = ["reward_id", "reward_name", "cost", "description"]
 REDEMPTION_COLUMNS = ["record_id", "reward_name", "cost", "redeemed_at"]
 
@@ -61,11 +74,23 @@ DEFAULT_REWARDS = [
     {"reward_id": 4, "reward_name": "一次半日出游", "cost": 300, "description": "安排一次较长时间的恢复活动"},
 ]
 
-DEFAULT_USER_STATS = {"current_points": 0, "total_points": 0, "completed_tasks": 0}
+DEFAULT_USER_STATS = {
+    "current_points": 0,
+    "total_points": 0,
+    "completed_tasks": 0,
+    "completed_weekly_focuses": 0,
+}
 EVENT_TYPE_OPTIONS = {"课程", "会议", "社交", "生活", "其他"}
 REPEAT_FREQUENCY_OPTIONS = {"daily", "weekly", "monthly"}
 REPEAT_END_TYPE_OPTIONS = {"count", "until"}
 MAX_REPEAT_EVENT_COUNT = 60
+WEEKLY_FOCUS_STATUS_OPTIONS = {"进行中", "已完成"}
+WEEKLY_FOCUS_MIN_DAYS = 3
+WEEKLY_FOCUS_MAX_DAYS = 14
+WEEKLY_FOCUS_DEFAULT_DAYS = 7
+WEEKLY_FOCUS_MAX_ACTIVE = 4
+WEEKLY_FOCUS_BASE_POINTS = 30
+WEEKLY_FOCUS_DAILY_POINTS = 5
 
 def _now_str():
     """返回当前时间字符串。"""
@@ -581,6 +606,96 @@ def _normalize_redemption_df(df):
     return normalized
 
 
+def _calculate_weekly_focus_points(duration_days):
+    """按目标周期计算 Weekly Focus 完成积分。"""
+    duration = int(_safe_float(duration_days, WEEKLY_FOCUS_DEFAULT_DAYS))
+    duration = max(WEEKLY_FOCUS_MIN_DAYS, min(WEEKLY_FOCUS_MAX_DAYS, duration))
+    return WEEKLY_FOCUS_BASE_POINTS + duration * WEEKLY_FOCUS_DAILY_POINTS
+
+
+def _focus_end_date(start_date, duration_days):
+    """根据开始日期与周期计算包含开始当天的结束日期。"""
+    return start_date + timedelta(days=int(duration_days) - 1)
+
+
+def _normalize_weekly_focus_df(df):
+    """标准化 Weekly Focus 表结构与字段类型。"""
+    normalized = df.copy()
+    for col in WEEKLY_FOCUS_COLUMNS:
+        if col not in normalized.columns:
+            normalized[col] = ""
+    normalized = normalized[WEEKLY_FOCUS_COLUMNS]
+
+    for col in ["focus_text", "start_date", "end_date", "status", "created_at", "completed_at"]:
+        normalized[col] = normalized[col].fillna("").astype(str)
+
+    normalized["focus_id"] = pd.to_numeric(normalized["focus_id"], errors="coerce")
+    normalized["duration_days"] = (
+        pd.to_numeric(normalized["duration_days"], errors="coerce")
+        .fillna(WEEKLY_FOCUS_DEFAULT_DAYS)
+        .clip(WEEKLY_FOCUS_MIN_DAYS, WEEKLY_FOCUS_MAX_DAYS)
+        .astype(int)
+    )
+    normalized["points"] = pd.to_numeric(normalized["points"], errors="coerce").fillna(0).astype(int)
+    normalized["status"] = normalized["status"].apply(
+        lambda value: value if value in WEEKLY_FOCUS_STATUS_OPTIONS else "进行中"
+    )
+
+    for index, row in normalized.iterrows():
+        try:
+            start_date = pd.to_datetime(row.get("start_date")).date()
+        except Exception:
+            start_date = date.today()
+
+        duration_days = int(row.get("duration_days", WEEKLY_FOCUS_DEFAULT_DAYS))
+        try:
+            end_date = pd.to_datetime(row.get("end_date")).date()
+        except Exception:
+            end_date = _focus_end_date(start_date, duration_days)
+
+        normalized.at[index, "start_date"] = start_date.isoformat()
+        normalized.at[index, "end_date"] = end_date.isoformat()
+
+    return normalized
+
+
+def _add_weekly_focus_runtime_fields(df):
+    """补充 Weekly Focus 页面展示字段，不写回 CSV。"""
+    enriched = df.copy()
+    today_date = date.today()
+
+    for index, row in enriched.iterrows():
+        duration_days = int(row.get("duration_days", WEEKLY_FOCUS_DEFAULT_DAYS))
+        try:
+            start_date = pd.to_datetime(row.get("start_date")).date()
+        except Exception:
+            start_date = today_date
+        try:
+            end_date = pd.to_datetime(row.get("end_date")).date()
+        except Exception:
+            end_date = _focus_end_date(start_date, duration_days)
+
+        raw_elapsed = (today_date - start_date).days + 1
+        days_elapsed = max(1, min(duration_days, raw_elapsed))
+        days_left = (end_date - today_date).days
+        progress_percent = round((days_elapsed / duration_days) * 100, 1)
+
+        if days_left > 0:
+            time_label = f"第 {days_elapsed}/{duration_days} 天，剩余 {days_left} 天"
+        elif days_left == 0:
+            time_label = f"第 {days_elapsed}/{duration_days} 天，今日结束"
+        else:
+            time_label = f"第 {duration_days}/{duration_days} 天，已超期 {abs(days_left)} 天"
+
+        enriched.at[index, "days_elapsed"] = days_elapsed
+        enriched.at[index, "days_left"] = days_left
+        enriched.at[index, "progress_percent"] = progress_percent
+        enriched.at[index, "time_label"] = time_label
+        enriched.at[index, "available_points"] = _calculate_weekly_focus_points(duration_days)
+
+    return enriched
+
+
 def ensure_data_files():
     """
     确保 Campilot 数据目录和基础数据文件存在，不存在时自动初始化。
@@ -595,6 +710,11 @@ def ensure_data_files():
     if not FIXED_EVENTS_PATH.exists():
         pd.DataFrame(columns=EVENT_COLUMNS).to_csv(
             FIXED_EVENTS_PATH, index=False, encoding="utf-8-sig"
+        )
+
+    if not WEEKLY_FOCUS_PATH.exists():
+        pd.DataFrame(columns=WEEKLY_FOCUS_COLUMNS).to_csv(
+            WEEKLY_FOCUS_PATH, index=False, encoding="utf-8-sig"
         )
 
     if not REWARDS_PATH.exists():
@@ -640,6 +760,140 @@ def save_tasks(df):
     ensure_data_files()
     save_df = _normalize_tasks_df(df)
     save_df.to_csv(USER_TASKS_PATH, index=False, encoding="utf-8-sig")
+
+
+def load_weekly_focuses():
+    """
+    读取 Weekly Focus 数据。
+
+    Returns:
+        pandas.DataFrame: weekly_focus.csv 对应数据，含页面展示字段。
+    """
+    ensure_data_files()
+    df = pd.read_csv(WEEKLY_FOCUS_PATH, encoding="utf-8-sig")
+    normalized = _normalize_weekly_focus_df(df)
+    return _add_weekly_focus_runtime_fields(normalized)
+
+
+def save_weekly_focuses(df):
+    """
+    保存 Weekly Focus 数据。
+
+    Args:
+        df (pandas.DataFrame): Weekly Focus 数据表。
+    """
+    ensure_data_files()
+    save_df = _normalize_weekly_focus_df(df)
+    save_df.to_csv(WEEKLY_FOCUS_PATH, index=False, encoding="utf-8-sig")
+
+
+def load_active_weekly_focuses():
+    """读取进行中的 Weekly Focus，按结束日期排序。"""
+    focuses_df = load_weekly_focuses()
+    active_df = focuses_df[focuses_df["status"].astype(str) == "进行中"].copy()
+    return active_df.sort_values(
+        by=["end_date", "focus_id"], kind="stable"
+    ).reset_index(drop=True)
+
+
+def add_weekly_focus(focus_data):
+    """
+    新增 Weekly Focus。
+
+    Args:
+        focus_data (dict): 包含 focus_text, duration_days。
+
+    Returns:
+        dict: 新增后的完整目标字典。
+    """
+    focuses_df = load_weekly_focuses()
+    active_count = int((focuses_df["status"].astype(str) == "进行中").sum())
+    if active_count >= WEEKLY_FOCUS_MAX_ACTIVE:
+        raise ValueError(f"同一时间最多保留 {WEEKLY_FOCUS_MAX_ACTIVE} 个进行中目标")
+
+    focus_text = str(focus_data.get("focus_text", "")).strip()
+    if not focus_text:
+        raise ValueError("Weekly Focus 不能为空")
+    if len(focus_text) > 120:
+        raise ValueError("Weekly Focus 最多 120 个字符")
+
+    duration_days = _parse_positive_int(
+        focus_data.get("duration_days", WEEKLY_FOCUS_DEFAULT_DAYS),
+        "目标周期",
+        max_value=WEEKLY_FOCUS_MAX_DAYS,
+    )
+    if duration_days < WEEKLY_FOCUS_MIN_DAYS:
+        raise ValueError(f"目标周期不能少于 {WEEKLY_FOCUS_MIN_DAYS} 天")
+
+    focus_id = _next_id(focuses_df, "focus_id")
+    start_date = date.today()
+    end_date = _focus_end_date(start_date, duration_days)
+    created_at = _now_str()
+
+    new_focus = {
+        "focus_id": focus_id,
+        "focus_text": focus_text,
+        "start_date": start_date.isoformat(),
+        "duration_days": duration_days,
+        "end_date": end_date.isoformat(),
+        "status": "进行中",
+        "created_at": created_at,
+        "completed_at": "",
+        "points": 0,
+    }
+
+    focuses_df = pd.concat([focuses_df, pd.DataFrame([new_focus])], ignore_index=True)
+    save_weekly_focuses(focuses_df)
+    return _row_to_dict(_add_weekly_focus_runtime_fields(pd.DataFrame([new_focus])).iloc[0])
+
+
+def update_weekly_focus(focus_id, focus_data):
+    """
+    更新进行中的 Weekly Focus。
+
+    Args:
+        focus_id: Weekly Focus ID。
+        focus_data (dict): 包含 focus_text, duration_days。
+
+    Returns:
+        dict: 更新后的 Weekly Focus 字典。
+    """
+    focuses_df = load_weekly_focuses()
+    index = _find_row_index(focuses_df, "focus_id", focus_id)
+    if index is None:
+        raise ValueError(f"未找到 focus_id={focus_id} 的 Weekly Focus")
+
+    current_status = str(focuses_df.at[index, "status"])
+    if current_status == "已完成":
+        raise ValueError("已完成的 Weekly Focus 不支持修改")
+
+    focus_text = str(focus_data.get("focus_text", "")).strip()
+    if not focus_text:
+        raise ValueError("Weekly Focus 不能为空")
+    if len(focus_text) > 120:
+        raise ValueError("Weekly Focus 最多 120 个字符")
+
+    duration_days = _parse_positive_int(
+        focus_data.get("duration_days", focuses_df.at[index, "duration_days"]),
+        "目标周期",
+        max_value=WEEKLY_FOCUS_MAX_DAYS,
+    )
+    if duration_days < WEEKLY_FOCUS_MIN_DAYS:
+        raise ValueError(f"目标周期不能少于 {WEEKLY_FOCUS_MIN_DAYS} 天")
+
+    try:
+        start_date = pd.to_datetime(focuses_df.at[index, "start_date"]).date()
+    except Exception:
+        start_date = date.today()
+
+    focuses_df.at[index, "focus_text"] = focus_text
+    focuses_df.at[index, "duration_days"] = duration_days
+    focuses_df.at[index, "start_date"] = start_date.isoformat()
+    focuses_df.at[index, "end_date"] = _focus_end_date(start_date, duration_days).isoformat()
+    save_weekly_focuses(focuses_df)
+
+    updated_focus = _add_weekly_focus_runtime_fields(focuses_df.loc[[index]]).iloc[0]
+    return _row_to_dict(updated_focus)
 
 
 def add_task(task_data):
@@ -837,6 +1091,42 @@ def complete_task(task_id, actual_hours=None):
     return _row_to_dict(tasks_df.loc[index])
 
 
+def complete_weekly_focus(focus_id):
+    """
+    完成 Weekly Focus 并发放积分。
+
+    Args:
+        focus_id: Weekly Focus ID。
+
+    Returns:
+        dict: 完成后的 Weekly Focus 字典。
+    """
+    focuses_df = load_weekly_focuses()
+    index = _find_row_index(focuses_df, "focus_id", focus_id)
+    if index is None:
+        raise ValueError(f"未找到 focus_id={focus_id} 的 Weekly Focus")
+
+    current_status = str(focuses_df.at[index, "status"])
+    if current_status == "已完成":
+        return _row_to_dict(focuses_df.loc[index])
+
+    duration_days = int(focuses_df.at[index, "duration_days"])
+    points = _calculate_weekly_focus_points(duration_days)
+    focuses_df.at[index, "status"] = "已完成"
+    focuses_df.at[index, "completed_at"] = _now_str()
+    focuses_df.at[index, "points"] = points
+    save_weekly_focuses(focuses_df)
+
+    stats = load_user_stats()
+    stats["current_points"] = int(stats.get("current_points", 0)) + int(points)
+    stats["total_points"] = int(stats.get("total_points", 0)) + int(points)
+    stats["completed_weekly_focuses"] = int(stats.get("completed_weekly_focuses", 0)) + 1
+    save_user_stats(stats)
+
+    completed_focus = _add_weekly_focus_runtime_fields(focuses_df.loc[[index]]).iloc[0]
+    return _row_to_dict(completed_focus)
+
+
 def delete_task(task_id):
     """
     删除任务。
@@ -855,6 +1145,26 @@ def delete_task(task_id):
         return False
 
     save_tasks(tasks_df)
+    return True
+
+
+def delete_weekly_focus(focus_id):
+    """
+    删除 Weekly Focus。
+
+    Args:
+        focus_id: Weekly Focus ID。
+
+    Returns:
+        bool: 是否删除成功。
+    """
+    focuses_df = load_weekly_focuses()
+    index = _find_row_index(focuses_df, "focus_id", focus_id)
+    if index is None:
+        return False
+
+    focuses_df = focuses_df.drop(index=index).copy()
+    save_weekly_focuses(focuses_df)
     return True
 
 
@@ -1048,7 +1358,10 @@ def load_user_stats():
     """
     ensure_data_files()
     with USER_STATS_PATH.open("r", encoding="utf-8") as file:
-        return json.load(file)
+        stats = json.load(file)
+    if not isinstance(stats, dict):
+        stats = {}
+    return {**DEFAULT_USER_STATS, **stats}
 
 
 def save_user_stats(stats):

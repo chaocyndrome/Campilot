@@ -6,6 +6,35 @@
   <p>当前未完成任务：{{ unfinished_tasks|length }}</p>
 </section>
 
+<section class="card weekly-focus-panel">
+  <div class="weekly-focus-header">
+    <div>
+      <h3>Weekly Focus</h3>
+      <p>{{ active_weekly_focuses|length }}/{{ weekly_focus_max_active }} 进行中</p>
+    </div>
+    <span class="weekly-focus-badge">方向提醒</span>
+  </div>
+
+  <div class="weekly-focus-list">
+    {% for focus in active_weekly_focuses %}
+    <article class="weekly-focus-item">
+      <div class="weekly-focus-main">
+        <p class="weekly-focus-text">{{ focus.focus_text }}</p>
+        <p class="weekly-focus-meta">
+          {{ focus.start_date }} - {{ focus.end_date }} ｜ {{ focus.time_label }} ｜ 完成 +{{ focus.available_points }} 积分
+        </p>
+      </div>
+      <form method="post" action="{{ url_for('complete_weekly_focus', focus_id=focus.focus_id) }}">
+        <input type="hidden" name="next" value="{{ url_for('today') }}">
+        <button type="submit" class="btn-secondary btn-compact">完成</button>
+      </form>
+    </article>
+    {% else %}
+    <p class="weekly-focus-empty">暂无进行中 Weekly Focus</p>
+    {% endfor %}
+  </div>
+</section>
+
 <section class="grid-2">
   <article class="card">
     <h3>今日推荐任务</h3>

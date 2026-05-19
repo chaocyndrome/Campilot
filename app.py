@@ -26,11 +26,13 @@ def _load_page_data():
     stats = storage.load_user_stats()
     rewards_df = storage.load_rewards()
     records_df = storage.load_redemption_records()
+    weekly_focuses_df = storage.load_weekly_focuses()
 
     tasks = tasks_df.fillna("").to_dict(orient="records")
     events = events_df.fillna("").to_dict(orient="records")
     rewards = rewards_df.fillna("").to_dict(orient="records")
     records = records_df.fillna("").to_dict(orient="records")
+    weekly_focuses = weekly_focuses_df.fillna("").to_dict(orient="records")
 
     return {
         "tasks": tasks,
@@ -38,6 +40,7 @@ def _load_page_data():
         "stats": stats,
         "rewards": rewards,
         "records": records,
+        "weekly_focuses": weekly_focuses,
     }
 
 
@@ -257,6 +260,17 @@ def today():
     context = _load_page_data()
 
     unfinished_tasks = [task for task in context["tasks"] if task.get("status") != "已完成"]
+    active_weekly_focuses = sorted(
+        [
+            focus
+            for focus in context["weekly_focuses"]
+            if str(focus.get("status", "")).strip() == "进行中"
+        ],
+        key=lambda focus: (
+            str(focus.get("end_date", "")),
+            _safe_number(focus.get("focus_id")),
+        ),
+    )
     recommendable_tasks = [
         task for task in unfinished_tasks if task.get("status") != "今日关注"
     ]
@@ -289,6 +303,8 @@ def today():
             "unfinished_tasks": unfinished_tasks_sorted,
             "recommended_tasks": recommended_tasks,
             "focus_tasks": focus_tasks,
+            "active_weekly_focuses": active_weekly_focuses,
+            "weekly_focus_max_active": storage.WEEKLY_FOCUS_MAX_ACTIVE,
         }
     )
     return render_template("today.html", **context)
@@ -416,12 +432,32 @@ def manage():
     if show_mode == "active":
         tasks = [task for task in tasks if task.get("status") != "已完成"]
     tasks = sorted(tasks, key=_task_sort_key_for_manage)
+    weekly_focuses = sorted(
+        context["weekly_focuses"],
+        key=lambda focus: (
+            0 if str(focus.get("status", "")).strip() == "进行中" else 1,
+            str(focus.get("end_date", "")),
+            _safe_number(focus.get("focus_id")),
+        ),
+    )
+    active_weekly_focus_count = sum(
+        1
+        for focus in weekly_focuses
+        if str(focus.get("status", "")).strip() == "进行中"
+    )
 
     context.update(
         {
             "active_page": "manage",
             "tasks": tasks,
             "events": context["events"],
+            "weekly_focuses": weekly_focuses,
+            "active_weekly_focus_count": active_weekly_focus_count,
+            "weekly_focus_max_active": storage.WEEKLY_FOCUS_MAX_ACTIVE,
+            "weekly_focus_can_add": active_weekly_focus_count < storage.WEEKLY_FOCUS_MAX_ACTIVE,
+            "weekly_focus_duration_options": range(
+                storage.WEEKLY_FOCUS_MIN_DAYS, storage.WEEKLY_FOCUS_MAX_DAYS + 1
+            ),
             "task_tag_options": tag_options,
             "show_mode": show_mode,
             "show_label": "显示未完成" if show_mode == "active" else "显示所有",
@@ -460,6 +496,38 @@ def add_task():
     except Exception as exc:
         flash(f"任务添加失败：{exc}", "error")
     return redirect(url_for("manage"))
+
+
+@app.route("/weekly-focus/add", methods=["POST"])
+def add_weekly_focus():
+    """处理 Weekly Focus 新增请求。"""
+    focus_data = {
+        "focus_text": request.form.get("focus_text", "").strip(),
+        "duration_days": request.form.get("duration_days", "").strip(),
+    }
+
+    try:
+        storage.add_weekly_focus(focus_data)
+        flash("Weekly Focus 已添加", "success")
+    except Exception as exc:
+        flash(f"Weekly Focus 添加失败：{exc}", "error")
+    return _redirect_back(default_endpoint="manage")
+
+
+@app.route("/weekly-focus/update/<focus_id>", methods=["POST"])
+def update_weekly_focus(focus_id):
+    """更新 Weekly Focus。"""
+    focus_data = {
+        "focus_text": request.form.get("focus_text", "").strip(),
+        "duration_days": request.form.get("duration_days", "").strip(),
+    }
+
+    try:
+        storage.update_weekly_focus(focus_id, focus_data)
+        flash("Weekly Focus 已更新", "success")
+    except Exception as exc:
+        flash(f"Weekly Focus 更新失败：{exc}", "error")
+    return _redirect_back(default_endpoint="manage")
 
 
 @app.route("/events/add", methods=["POST"])
@@ -608,6 +676,29 @@ def complete_task(task_id):
     except Exception as exc:
         flash(f"完成任务失败：{exc}", "error")
     return _redirect_back(default_endpoint="today")
+
+
+@app.route("/weekly-focus/complete/<focus_id>", methods=["POST"])
+def complete_weekly_focus(focus_id):
+    """完成 Weekly Focus 并提示积分。"""
+    try:
+        completed_focus = storage.complete_weekly_focus(focus_id)
+        points = int(float(completed_focus.get("points", 0)))
+        flash(f"Weekly Focus 已完成，获得 {points} 积分", "success")
+    except Exception as exc:
+        flash(f"完成 Weekly Focus 失败：{exc}", "error")
+    return _redirect_back(default_endpoint="today")
+
+
+@app.route("/weekly-focus/delete/<focus_id>", methods=["POST"])
+def delete_weekly_focus(focus_id):
+    """删除 Weekly Focus。"""
+    is_deleted = storage.delete_weekly_focus(focus_id)
+    if is_deleted:
+        flash("Weekly Focus 已删除", "success")
+    else:
+        flash("Weekly Focus 不存在或已删除", "error")
+    return _redirect_back(default_endpoint="manage")
 
 
 @app.route("/events/delete/<event_id>", methods=["POST"])

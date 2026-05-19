@@ -148,6 +148,82 @@
   </article>
 </section>
 
+<section class="card table-card weekly-focus-manage-panel">
+  <div class="weekly-focus-header">
+    <div>
+      <h3>Weekly Focus 管理</h3>
+      <p>{{ active_weekly_focus_count }}/{{ weekly_focus_max_active }} 进行中</p>
+    </div>
+    <span class="weekly-focus-badge">3-14 天</span>
+  </div>
+
+  <form method="post" action="{{ url_for('add_weekly_focus') }}" class="weekly-focus-form">
+    <input type="hidden" name="next" value="{{ manage_next_url }}">
+    <input
+      type="text"
+      name="focus_text"
+      maxlength="120"
+      placeholder="例如：本周集中吃透线性代数特征值"
+      aria-label="Weekly Focus"
+      {% if not weekly_focus_can_add %}disabled{% endif %}
+      required
+    >
+    <select name="duration_days" aria-label="目标周期" {% if not weekly_focus_can_add %}disabled{% endif %}>
+      {% for days in weekly_focus_duration_options %}
+      <option value="{{ days }}" {% if days == 7 %}selected{% endif %}>{{ days }} 天</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn-primary" {% if not weekly_focus_can_add %}disabled{% endif %}>
+      {% if weekly_focus_can_add %}添加{% else %}已满{% endif %}
+    </button>
+  </form>
+
+  <div class="weekly-focus-manage-list">
+    {% for focus in weekly_focuses %}
+    <article class="weekly-focus-manage-item {% if focus.status == '已完成' %}completed{% endif %}">
+      {% if focus.status == '进行中' %}
+      <form
+        method="post"
+        action="{{ url_for('update_weekly_focus', focus_id=focus.focus_id) }}"
+        class="weekly-focus-edit-form"
+      >
+        <input type="hidden" name="next" value="{{ manage_next_url }}">
+        <label class="weekly-focus-field-main">
+          目标
+          <input type="text" name="focus_text" maxlength="120" value="{{ focus.focus_text }}" required>
+        </label>
+        <label>
+          周期
+          <select name="duration_days">
+            {% for days in weekly_focus_duration_options %}
+            <option value="{{ days }}" {% if days == focus.duration_days %}selected{% endif %}>{{ days }} 天</option>
+            {% endfor %}
+          </select>
+        </label>
+        <button type="submit" class="btn-primary btn-compact">保存</button>
+        <p class="weekly-focus-row-meta">
+          {{ focus.start_date }} - {{ focus.end_date }} ｜ {{ focus.time_label }} ｜ 完成 +{{ focus.available_points }} 积分
+        </p>
+      </form>
+      {% else %}
+      <div class="weekly-focus-manage-static">
+        <p class="weekly-focus-text">{{ focus.focus_text }}</p>
+        <p class="weekly-focus-meta">
+          {{ focus.start_date }} - {{ focus.end_date }} ｜ 已完成 ｜ 已获得 {{ focus.points }} 积分
+        </p>
+      </div>
+      {% endif %}
+      <form method="post" action="{{ url_for('delete_weekly_focus', focus_id=focus.focus_id) }}">
+        <input type="hidden" name="next" value="{{ manage_next_url }}">
+        <button type="submit" class="btn-danger btn-compact">删除</button>
+      </form>
+    </article>
+    {% else %}
+    <p class="weekly-focus-empty">暂无 Weekly Focus</p>
+    {% endfor %}
+  </div>
+</section>
+
 <section class="card table-card">
   <div class="table-header-row">
     <h3>当前任务表</h3>

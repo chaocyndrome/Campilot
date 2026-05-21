@@ -4,6 +4,12 @@
 <section class="page-header card">
   <h2>今日驾驶舱</h2>
   <p>当前未完成任务：{{ unfinished_tasks|length }}</p>
+  <img
+    class="page-header-sticker"
+    src="{{ url_for('static', filename='img/stickers/today-cockpit.png') }}"
+    alt=""
+    aria-hidden="true"
+  >
 </section>
 
 <section class="card weekly-focus-panel">

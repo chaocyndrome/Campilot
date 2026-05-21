@@ -90,12 +90,37 @@ body {
 }
 
 .page-header {
+  position: relative;
   margin-bottom: 16px;
+  min-height: 112px;
+  padding-right: 108px;
+  overflow: hidden;
 }
 
 .page-header h2,
 .card h3 {
   margin-top: 0;
+}
+
+.page-header h2,
+.page-header p {
+  position: relative;
+  z-index: 1;
+}
+
+.page-header p {
+  max-width: 720px;
+}
+
+.page-header-sticker {
+  position: absolute;
+  right: 18px;
+  bottom: 4px;
+  z-index: 0;
+  width: clamp(70px, 7.7vw, 90.2px);
+  height: auto;
+  pointer-events: none;
+  user-select: none;
 }
 
 .grid-2 {
@@ -970,6 +995,17 @@ p {
 }
 
 @media (max-width: 768px) {
+  .page-header {
+    min-height: 100px;
+    padding-right: 82px;
+  }
+
+  .page-header-sticker {
+    right: 12px;
+    bottom: 4px;
+    width: 58px;
+  }
+
   .grid-2 {
     grid-template-columns: 1fr;
   }

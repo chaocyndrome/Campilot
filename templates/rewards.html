@@ -2,11 +2,16 @@
 
 {% block head_extra %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<style>
+.badge-progress-fill {
+  width: var(--badge-progress, 0%);
+}
+</style>
 {% endblock %}
 
 {% block content %}
 <section class="page-header card">
-  <h2>奖励/成就</h2>
+  <h2>后勤补给</h2>
   <p>通过完成任务积累积分，按自己的节奏兑换奖励并追踪成长。</p>
 </section>
 
@@ -112,7 +117,7 @@
           <p><span>当前进度：</span>{{ badge.progress }}/{{ badge.target }}</p>
           <p><span>说明：</span>{{ badge.description }}</p>
           <div class="badge-progress-track" role="presentation">
-            <div class="badge-progress-fill" style="width: {{ badge.progress_percent }}%;"></div>
+            <div class="badge-progress-fill" style="--badge-progress: {{ badge.progress_percent | default(0) }}%;"></div>
           </div>
         </div>
       </details>

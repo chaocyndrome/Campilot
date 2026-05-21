@@ -14,10 +14,10 @@
         <img src="{{ url_for('static', filename='img/campilot-logo.png') }}" alt="Campilot">
       </h1>
       <nav class="nav">
-        <a href="{{ url_for('today') }}" class="{% if active_page == 'today' %}active{% endif %}">今日任务</a>
-        <a href="{{ url_for('timeline') }}" class="{% if active_page == 'timeline' %}active{% endif %}">本周时间线</a>
-        <a href="{{ url_for('manage') }}" class="{% if active_page == 'manage' %}active{% endif %}">添加/管理</a>
-        <a href="{{ url_for('rewards') }}" class="{% if active_page == 'rewards' %}active{% endif %}">奖励/成就</a>
+        <a href="{{ url_for('today') }}" class="{% if active_page == 'today' %}active{% endif %}">今日驾驶舱</a>
+        <a href="{{ url_for('timeline') }}" class="{% if active_page == 'timeline' %}active{% endif %}">本周任务地图</a>
+        <a href="{{ url_for('manage') }}" class="{% if active_page == 'manage' %}active{% endif %}">控制中枢</a>
+        <a href="{{ url_for('rewards') }}" class="{% if active_page == 'rewards' %}active{% endif %}">后勤补给</a>
       </nav>
     </div>
   </header>

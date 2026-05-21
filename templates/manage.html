@@ -2,13 +2,13 @@
 
 {% block content %}
 <section class="page-header card">
-  <h2>添加/管理</h2>
-  <p>在这里添加任务与固定安排，并管理已有数据。</p>
+  <h2>控制中枢</h2>
+  <p>在这里添加任务、固定安排与周度计划，并管理已有数据。</p>
 </section>
 
 <section class="grid-2">
   <article class="card">
-    <h3>添加任务表单</h3>
+    <h3>添加任务</h3>
     <form method="post" action="{{ url_for('add_task') }}" class="form-grid">
       <label>
         任务名称
@@ -67,7 +67,7 @@
   </article>
 
   <article class="card">
-    <h3>添加固定安排表单</h3>
+    <h3>添加固定安排</h3>
     <form method="post" action="{{ url_for('add_event') }}" class="form-grid" id="event-add-form">
       <label>
         安排名称

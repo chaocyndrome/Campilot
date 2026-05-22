@@ -1,0 +1,77 @@
+{
+  "output": "/Users/selina/coding/Campilot/Campilot_期末答辩展示.pptx",
+  "outputBytes": 1420127,
+  "slideCount": 6,
+  "slideSize": {
+    "width": 1280,
+    "height": 720
+  },
+  "previewDir": "/Users/selina/coding/Campilot/outputs/019e4aef-6f4c-7b11-be41-8e106feed990/presentations/campilot-reorder/preview",
+  "previewPaths": [
+    "/Users/selina/coding/Campilot/outputs/019e4aef-6f4c-7b11-be41-8e106feed990/presentations/campilot-reorder/preview/slide-01.png",
+    "/Users/selina/coding/Campilot/outputs/019e4aef-6f4c-7b11-be41-8e106feed990/presentations/campilot-reorder/preview/slide-02.png",
+    "/Users/selina/coding/Campilot/outputs/019e4aef-6f4c-7b11-be41-8e106feed990/presentations/campilot-reorder/preview/slide-03.png",
+    "/Users/selina/coding/Campilot/outputs/019e4aef-6f4c-7b11-be41-8e106feed990/presentations/campilot-reorder/preview/slide-04.png",
+    "/Users/selina/coding/Campilot/outputs/019e4aef-6f4c-7b11-be41-8e106feed990/presentations/campilot-reorder/preview/slide-05.png",
+    "/Users/selina/coding/Campilot/outputs/019e4aef-6f4c-7b11-be41-8e106feed990/presentations/campilot-reorder/preview/slide-06.png"
+  ],
+  "layoutDir": "/Users/selina/coding/Campilot/outputs/019e4aef-6f4c-7b11-be41-8e106feed990/presentations/campilot-reorder/layout/final",
+  "layoutResults": [
+    {
+      "layoutPath": "/Users/selina/coding/Campilot/outputs/019e4aef-6f4c-7b11-be41-8e106feed990/presentations/campilot-reorder/layout/final/slide-01.layout.json"
+    },
+    {
+      "layoutPath": "/Users/selina/coding/Campilot/outputs/019e4aef-6f4c-7b11-be41-8e106feed990/presentations/campilot-reorder/layout/final/slide-02.layout.json"
+    },
+    {
+      "layoutPath": "/Users/selina/coding/Campilot/outputs/019e4aef-6f4c-7b11-be41-8e106feed990/presentations/campilot-reorder/layout/final/slide-03.layout.json"
+    },
+    {
+      "layoutPath": "/Users/selina/coding/Campilot/outputs/019e4aef-6f4c-7b11-be41-8e106feed990/presentations/campilot-reorder/layout/final/slide-04.layout.json"
+    },
+    {
+      "layoutPath": "/Users/selina/coding/Campilot/outputs/019e4aef-6f4c-7b11-be41-8e106feed990/presentations/campilot-reorder/layout/final/slide-05.layout.json"
+    },
+    {
+      "layoutPath": "/Users/selina/coding/Campilot/outputs/019e4aef-6f4c-7b11-be41-8e106feed990/presentations/campilot-reorder/layout/final/slide-06.layout.json"
+    }
+  ],
+  "slides": [
+    {
+      "index": 1,
+      "requestedSlideNumber": 1,
+      "modulePath": "/Users/selina/coding/Campilot/outputs/019e4aef-6f4c-7b11-be41-8e106feed990/presentations/campilot-reorder/slides/slide-01.mjs",
+      "exportName": "slide01"
+    },
+    {
+      "index": 2,
+      "requestedSlideNumber": 2,
+      "modulePath": "/Users/selina/coding/Campilot/outputs/019e4aef-6f4c-7b11-be41-8e106feed990/presentations/campilot-reorder/slides/slide-02.mjs",
+      "exportName": "slide02"
+    },
+    {
+      "index": 3,
+      "requestedSlideNumber": 3,
+      "modulePath": "/Users/selina/coding/Campilot/outputs/019e4aef-6f4c-7b11-be41-8e106feed990/presentations/campilot-reorder/slides/slide-03.mjs",
+      "exportName": "slide03"
+    },
+    {
+      "index": 4,
+      "requestedSlideNumber": 4,
+      "modulePath": "/Users/selina/coding/Campilot/outputs/019e4aef-6f4c-7b11-be41-8e106feed990/presentations/campilot-reorder/slides/slide-04.mjs",
+      "exportName": "slide04"
+    },
+    {
+      "index": 5,
+      "requestedSlideNumber": 5,
+      "modulePath": "/Users/selina/coding/Campilot/outputs/019e4aef-6f4c-7b11-be41-8e106feed990/presentations/campilot-reorder/slides/slide-05.mjs",
+      "exportName": "slide05"
+    },
+    {
+      "index": 6,
+      "requestedSlideNumber": 6,
+      "modulePath": "/Users/selina/coding/Campilot/outputs/019e4aef-6f4c-7b11-be41-8e106feed990/presentations/campilot-reorder/slides/slide-06.mjs",
+      "exportName": "slide06"
+    }
+  ]
+}

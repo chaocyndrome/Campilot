@@ -20,6 +20,12 @@ data/*.csv
 data/*.png
 data/*.jpg
 data/*.jpeg
+outputs/
+artifact-build-manifest.json
+
+# Presentation artifacts
+*.pptx
+*.key
 
 # Keep data folder structure
 !data/.gitkeep

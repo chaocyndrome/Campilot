@@ -83,6 +83,25 @@ def _task_sort_key_for_manage(task):
     )
 
 
+def _recent_task_tags(tasks):
+    """按标签最近一次创建任务的时间排序，时间相同时按任务 ID 排序。"""
+    recent_tasks = sorted(
+        tasks,
+        key=lambda task: (
+            str(task.get("created_at") or ""),
+            _safe_number(task.get("task_id")),
+        ),
+        reverse=True,
+    )
+    return list(
+        dict.fromkeys(
+            tag
+            for task in recent_tasks
+            if (tag := str(task.get("tag") or "").strip())
+        )
+    )
+
+
 def _task_sort_key_for_focus(task):
     """今日关注任务排序：优先级 > 优先级权重数字(重要程度) > DDL。"""
     deadline_date = _parse_date(task.get("deadline"))
@@ -421,13 +440,7 @@ def manage():
         show_mode = "active"
 
     all_tasks = context["tasks"]
-    tag_options = sorted(
-        {
-            str(task.get("tag", "")).strip()
-            for task in all_tasks
-            if str(task.get("tag", "")).strip()
-        }
-    )
+    tag_options = _recent_task_tags(all_tasks)
     tasks = all_tasks
     if show_mode == "active":
         tasks = [task for task in tasks if task.get("status") != "已完成"]

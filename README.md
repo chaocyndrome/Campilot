@@ -82,12 +82,6 @@ Campilot 是一个面向学习与任务管理的 Flask 网页应用。它可以�
 python generate_data.py
 ```
 
-如果需要运行手动样例测试，可以运行：
-
-```bash
-python manual_test.py
-```
-
 ## 项目结构
 
 ```text
@@ -100,6 +94,5 @@ python manual_test.py
 ├── static/             # CSS、JavaScript 与图片资源
 ├── data/               # 本地数据文件目录
 ├── requirements.txt    # Python 依赖
-├── generate_data.py    # 生成样例训练数据
-└── manual_test.py      # 手动样例测试脚本
+└── generate_data.py    # 生成样例训练数据
 ```
